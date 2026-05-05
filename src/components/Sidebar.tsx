@@ -16,6 +16,7 @@ import {
   History,
   Shield,
   Sparkles,
+  Presentation,
   Menu,
   X,
 } from 'lucide-react'
@@ -46,6 +47,7 @@ const NAV: NavItem[] = [
   { to: '/exports', label: 'Exports', icon: Download, roles: ['admin', 'ddfpt'], section: 'main' },
   { to: '/activity', label: 'Activité', icon: History, roles: ['admin', 'ddfpt'], section: 'main' },
   { to: '/settings', label: 'Paramètres', icon: Settings, roles: ['admin', 'ddfpt'], section: 'main' },
+  { to: '/pitch', label: 'Présentation produit', icon: Presentation, roles: ['superadmin', 'admin', 'ddfpt'], section: 'main' },
 
   { to: '/superadmin', label: 'Vue globale', icon: Shield, roles: ['superadmin'], section: 'super' },
   { to: '/superadmin/establishments', label: 'Établissements', icon: Briefcase, roles: ['superadmin'], section: 'super' },
