@@ -1,0 +1,273 @@
+export type UUID = string
+export type ISODate = string
+
+export type UserRole =
+  | 'superadmin'
+  | 'admin'
+  | 'ddfpt'
+  | 'principal'
+  | 'referent'
+  | 'tuteur'
+  | 'eleve'
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  superadmin: 'Superadmin SaaS',
+  admin: 'Admin établissement',
+  ddfpt: 'DDFPT / Chef de travaux',
+  principal: 'Professeur principal',
+  referent: 'Professeur référent',
+  tuteur: 'Tuteur entreprise',
+  eleve: 'Élève',
+}
+
+export interface Establishment {
+  id: UUID
+  name: string
+  city: string
+  uai?: string
+  active: boolean
+  studentCount: number
+  userCount: number
+  lastConnectionAt?: ISODate
+  activityScore: number // 0..100
+  createdAt: ISODate
+}
+
+export interface Profile {
+  id: UUID
+  establishmentId: UUID | null
+  firstName: string
+  lastName: string
+  email: string
+  role: UserRole
+  avatarColor?: string
+}
+
+export interface Class {
+  id: UUID
+  establishmentId: UUID
+  name: string
+  level: 'CAP' | 'Bac Pro' | 'BTS'
+  formation: string
+  year: string
+  studentCount: number
+  principalId?: UUID
+}
+
+export type StageStatus =
+  | 'no_stage'
+  | 'found'
+  | 'pending_convention'
+  | 'signed_convention'
+  | 'in_progress'
+  | 'completed'
+  | 'interrupted'
+
+export const STAGE_STATUS_LABELS: Record<StageStatus, string> = {
+  no_stage: 'Pas de stage',
+  found: 'Stage trouvé',
+  pending_convention: 'Convention en attente',
+  signed_convention: 'Convention signée',
+  in_progress: 'En stage',
+  completed: 'Terminé',
+  interrupted: 'Interrompu',
+}
+
+export interface Student {
+  id: UUID
+  establishmentId: UUID
+  classId: UUID
+  firstName: string
+  lastName: string
+  email?: string
+  phone?: string
+  formation: string
+  stageStatus: StageStatus
+  referentId?: UUID
+  companyId?: UUID
+  tutorId?: UUID
+  periodId?: UUID
+  notes?: string
+}
+
+export interface Teacher {
+  id: UUID
+  establishmentId: UUID
+  firstName: string
+  lastName: string
+  email: string
+  phone?: string
+  classes: UUID[]
+  studentLoad: number
+}
+
+export interface Company {
+  id: UUID
+  establishmentId: UUID
+  name: string
+  address: string
+  city: string
+  zipCode: string
+  phone?: string
+  email?: string
+  sector: string
+  studentsHosted: number
+  reliability: 'high' | 'medium' | 'low' | 'unknown'
+  internalNotes?: string
+}
+
+export interface Tutor {
+  id: UUID
+  establishmentId: UUID
+  firstName: string
+  lastName: string
+  function: string
+  email?: string
+  phone?: string
+  companyId: UUID
+}
+
+export type PeriodStatus = 'preparation' | 'in_progress' | 'completed' | 'archived'
+
+export const PERIOD_STATUS_LABELS: Record<PeriodStatus, string> = {
+  preparation: 'En préparation',
+  in_progress: 'En cours',
+  completed: 'Terminée',
+  archived: 'Archivée',
+}
+
+export interface PfmpPeriod {
+  id: UUID
+  establishmentId: UUID
+  name: string
+  schoolYear: string
+  classIds: UUID[]
+  startDate: ISODate
+  endDate: ISODate
+  status: PeriodStatus
+  studentCount: number
+  assignmentRate: number
+  visitRate: number
+  missingDocuments: number
+}
+
+export type ContactType = 'visit' | 'call' | 'video' | 'email'
+export type AlertLevel = 'none' | 'vigilance' | 'problem' | 'urgent'
+export type VisitStatus = 'draft' | 'validated' | 'archived'
+
+export const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
+  visit: 'Visite sur site',
+  call: 'Appel téléphonique',
+  video: 'Visioconférence',
+  email: 'Email',
+}
+
+export const ALERT_LEVEL_LABELS: Record<AlertLevel, string> = {
+  none: 'Aucune',
+  vigilance: 'Vigilance',
+  problem: 'Problème à traiter',
+  urgent: 'Urgence',
+}
+
+export interface Visit {
+  id: UUID
+  establishmentId: UUID
+  studentId: UUID
+  teacherId: UUID
+  periodId: UUID
+  date: ISODate
+  contactType: ContactType
+  studentPresent: boolean
+  tutorMet: boolean
+  conditions?: string
+  activities?: string
+  professionalPosture?: string
+  positives?: string
+  difficulties?: string
+  tutorRemark?: string
+  teacherRemark?: string
+  alertLevel: AlertLevel
+  nextAction?: string
+  status: VisitStatus
+}
+
+export type DocumentType =
+  | 'convention'
+  | 'attestation'
+  | 'visit_report'
+  | 'evaluation'
+  | 'other'
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  convention: 'Convention',
+  attestation: 'Attestation',
+  visit_report: 'Compte rendu',
+  evaluation: 'Fiche évaluation',
+  other: 'Autre',
+}
+
+export interface Document {
+  id: UUID
+  establishmentId: UUID
+  type: DocumentType
+  studentId?: UUID
+  periodId?: UUID
+  companyId?: UUID
+  name: string
+  date: ISODate
+  status: 'missing' | 'draft' | 'validated' | 'archived'
+  authorId?: UUID
+}
+
+export type AlertType =
+  | 'student_no_stage'
+  | 'missing_convention'
+  | 'visit_late'
+  | 'missing_attestation'
+  | 'teacher_overload'
+  | 'stage_interrupted'
+  | 'company_watch'
+  | 'low_activity_establishment'
+
+export interface Alert {
+  id: UUID
+  establishmentId: UUID
+  type: AlertType
+  severity: AlertLevel
+  message: string
+  relatedEntity: { type: string; id: UUID; label: string }
+  createdAt: ISODate
+  resolved: boolean
+}
+
+export interface Placement {
+  id: UUID
+  establishmentId: UUID
+  studentId: UUID
+  companyId: UUID
+  tutorId: UUID
+  periodId: UUID
+  referentId?: UUID
+  startDate: ISODate
+  endDate: ISODate
+  status: StageStatus
+}
+
+export interface ActivityLogEntry {
+  id: UUID
+  establishmentId: UUID
+  userId: UUID
+  action:
+    | 'login'
+    | 'import'
+    | 'student_create'
+    | 'assignment_update'
+    | 'visit_create'
+    | 'report_validate'
+    | 'ai_generate'
+    | 'export'
+    | 'archive'
+    | 'role_change'
+  description: string
+  createdAt: ISODate
+}
