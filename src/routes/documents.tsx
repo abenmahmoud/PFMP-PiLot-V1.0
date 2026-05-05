@@ -31,6 +31,7 @@ import {
   companies,
   documentTemplates,
   generatedDocuments,
+  ESTABLISHMENT_ID,
   pfmpPeriods,
   preDepartureChecklists,
   students,
@@ -250,7 +251,9 @@ function DocumentsPage() {
         </CardHeader>
         <CardBody>
           <AlertList
-            alerts={alerts.filter((a) => a.type.startsWith('document_'))}
+            alerts={alerts.filter(
+              (a) => a.establishmentId === ESTABLISHMENT_ID && a.type.startsWith('document_'),
+            )}
             emptyMessage="Aucune alerte documentaire."
             compact
           />
