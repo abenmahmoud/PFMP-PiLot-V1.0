@@ -1,10 +1,14 @@
 import { Badge } from '@/components/ui/Badge'
 import {
   ALERT_LEVEL_LABELS,
+  DOCUMENT_WORKFLOW_STATUS_LABELS,
   PERIOD_STATUS_LABELS,
+  SIGNATURE_STATUS_LABELS,
   STAGE_STATUS_LABELS,
   type AlertLevel,
+  type DocumentWorkflowStatus,
   type PeriodStatus,
+  type SignatureStatus,
   type StageStatus,
 } from '@/types'
 
@@ -59,4 +63,34 @@ export function DocumentStatusBadge({
   } as const
   const { tone, label } = map[status]
   return <Badge tone={tone} dot>{label}</Badge>
+}
+
+export function DocumentWorkflowStatusBadge({ status }: { status: DocumentWorkflowStatus }) {
+  const tone =
+    status === 'fully_signed' || status === 'archived'
+      ? 'success'
+      : status === 'partially_signed' || status === 'awaiting_signature' || status === 'sent'
+        ? 'info'
+        : status === 'draft' || status === 'template_to_configure'
+          ? 'warning'
+          : status === 'to_correct'
+            ? 'warning'
+            : status === 'refused' || status === 'expired'
+              ? 'danger'
+              : 'neutral'
+  return <Badge tone={tone} dot>{DOCUMENT_WORKFLOW_STATUS_LABELS[status]}</Badge>
+}
+
+export function SignatureStatusBadge({ status }: { status: SignatureStatus }) {
+  const tone =
+    status === 'signed'
+      ? 'success'
+      : status === 'sent'
+        ? 'info'
+        : status === 'pending'
+          ? 'warning'
+          : status === 'refused' || status === 'expired'
+            ? 'danger'
+            : 'neutral'
+  return <Badge tone={tone} dot>{SIGNATURE_STATUS_LABELS[status]}</Badge>
 }

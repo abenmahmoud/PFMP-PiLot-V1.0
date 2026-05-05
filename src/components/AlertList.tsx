@@ -13,6 +13,12 @@ const TYPE_LABELS: Record<Alert['type'], string> = {
   stage_interrupted: 'Stage interrompu',
   company_watch: 'Entreprise à surveiller',
   low_activity_establishment: 'Établissement peu actif',
+  document_unsigned_convention: 'Convention non signée',
+  document_missing_pedagogical_annex: 'Annexe pédagogique manquante',
+  document_missing_company_stamp: 'Cachet entreprise manquant',
+  document_missing_tutor: 'Tuteur non renseigné',
+  document_predeparture_incomplete: 'Dossier incomplet avant départ',
+  document_postpfmp_incomplete: 'Dossier incomplet après PFMP',
 }
 
 interface AlertListProps {
