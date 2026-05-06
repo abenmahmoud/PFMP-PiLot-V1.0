@@ -52,10 +52,15 @@ export function Topbar({ title, subtitle, actions }: TopbarProps) {
               {me.firstName} {me.lastName}
             </p>
             <p className="text-[10px] text-[var(--color-text-muted)]">{ROLE_LABELS[me.role]}</p>
+            {/*
+              preload={false} désactive le préchargement automatique du loader de la
+              route /deconnexion. Sans ça, TanStack Router pourrait déclencher le
+              signOut dès le hover ou au montage du composant, sans clic utilisateur.
+              Bug connu rencontré sur SafeScol (Next.js équivalent: prefetch={false}).
+            */}
             <Link
               to="/deconnexion"
               preload={false}
-              {...({ prefetch: false } as { prefetch: false })}
               className="text-[10px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
             >
               Déconnexion
