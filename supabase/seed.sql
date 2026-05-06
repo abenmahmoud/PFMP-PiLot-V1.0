@@ -23,13 +23,13 @@ set role postgres;
 -- -----------------------------------------------------------------------------
 -- 1. Établissements
 -- -----------------------------------------------------------------------------
-insert into establishments (id, name, city, uai, slug, subdomain, primary_color, status, active)
+insert into establishments (id, name, city, uai, slug, subdomain, custom_domain, domain_verified, primary_color, status, active)
 values
-  ('e1000000-0000-0000-0000-000000000001', 'Lycée Professionnel Jean Moulin', 'Lyon',      '0691234A', 'jean-moulin',   'jean-moulin',   '#1d4ed8', 'active', true),
-  ('e1000000-0000-0000-0000-000000000002', 'Lycée Voltaire',                  'Marseille', '0132211B', 'voltaire',      null,            '#7c3aed', 'active', true),
-  ('e1000000-0000-0000-0000-000000000003', 'Lycée Marie Curie',               'Paris',     '0750412C', 'marie-curie',   null,            '#0ea5e9', 'trial',  true),
-  ('e1000000-0000-0000-0000-000000000004', 'Lycée Émile Zola',                'Lille',     '0594321D', 'emile-zola',    null,            '#16a34a', 'active', true),
-  ('e1000000-0000-0000-0000-000000000005', 'Lycée Montaigne',                 'Bordeaux',  '0331122E', 'montaigne',     null,            '#dc2626', 'active', true)
+  ('e1000000-0000-0000-0000-000000000001', 'Lycée Professionnel Jean Moulin', 'Lyon',      '0691234A', 'jean-moulin',   'jean-moulin', null, false, '#1d4ed8', 'active', true),
+  ('e1000000-0000-0000-0000-000000000002', 'Lycée Voltaire',                  'Marseille', '0132211B', 'voltaire',      null,          null, false, '#7c3aed', 'active', true),
+  ('e1000000-0000-0000-0000-000000000003', 'Lycée Marie Curie',               'Paris',     '0750412C', 'marie-curie',   null,          null, false, '#0ea5e9', 'active', true),
+  ('e1000000-0000-0000-0000-000000000004', 'Lycée Émile Zola',                'Lille',     '0594321D', 'emile-zola',    null,          null, false, '#16a34a', 'active', true),
+  ('e1000000-0000-0000-0000-000000000005', 'Lycée Montaigne',                 'Bordeaux',  '0331122E', 'montaigne',     null,          null, false, '#dc2626', 'active', true)
 on conflict (id) do nothing;
 
 -- Établissement settings (uniquement pour le tenant principal pour l'instant)

@@ -19,10 +19,24 @@ create table if not exists establishments (
   name text not null,
   city text,
   uai text,
+  slug text not null,
+  subdomain text,
+  custom_domain text,
+  domain_verified boolean not null default false,
+  primary_color text,
+  status text not null default 'active'
+    check (status in ('active', 'trial', 'suspended', 'archived')),
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create unique index if not exists establishments_slug_unique
+  on establishments(slug);
+create unique index if not exists establishments_subdomain_unique
+  on establishments(subdomain) where subdomain is not null;
+create unique index if not exists establishments_custom_domain_unique
+  on establishments(custom_domain) where custom_domain is not null;
 
 -- ---------------------------------------------------------------------
 -- Profiles (linked 1:1 to auth.users)

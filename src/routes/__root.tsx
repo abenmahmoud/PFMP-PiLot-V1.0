@@ -1,8 +1,35 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRouteWithContext,
+} from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeader } from '@tanstack/react-start/server'
 
 import '../styles.css'
+import {
+  resolveServerTenant,
+  type ServerTenantContext,
+} from '@/server/tenant-middleware'
 
-export const Route = createRootRoute({
+// Server function: executed server-side (Nitro), resolves the tenant from the
+// request Host header and returns a serializable router context.
+const getTenant = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<ServerTenantContext> => {
+    const host = getRequestHeader('host') ?? ''
+    return resolveServerTenant(host)
+  },
+)
+
+export interface RouterContext {
+  tenant: ServerTenantContext
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
+  beforeLoad: async () => {
+    const tenant = await getTenant()
+    return { tenant }
+  },
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
