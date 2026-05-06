@@ -9,6 +9,18 @@ export const getRouter = () => {
     routeTree,
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
+    context: {
+      tenant: {
+        resolution: {
+          kind: 'local',
+          slug: null,
+          customDomain: null,
+          hostname: '',
+        },
+        establishment: null,
+        isDemo: true,
+      },
+    },
   })
 
   return router
