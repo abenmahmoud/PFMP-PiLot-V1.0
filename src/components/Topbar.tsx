@@ -3,6 +3,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser'
 import { ROLE_LABELS } from '@/types'
 import { Link } from '@tanstack/react-router'
 import { MobileSidebar } from './Sidebar'
+import { SuperadminTenantSwitcher } from './SuperadminTenantSwitcher'
 
 interface TopbarProps {
   title: string
@@ -29,6 +30,7 @@ export function Topbar({ title, subtitle, actions }: TopbarProps) {
           <span>Recherche globale (Ctrl+K)</span>
         </div>
         {actions}
+        <SuperadminTenantSwitcher />
         <Link
           to="/alerts"
           className="relative w-9 h-9 inline-flex items-center justify-center rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
@@ -50,6 +52,19 @@ export function Topbar({ title, subtitle, actions }: TopbarProps) {
               {me.firstName} {me.lastName}
             </p>
             <p className="text-[10px] text-[var(--color-text-muted)]">{ROLE_LABELS[me.role]}</p>
+            {/*
+              preload={false} désactive le préchargement automatique du loader de la
+              route /deconnexion. Sans ça, TanStack Router pourrait déclencher le
+              signOut dès le hover ou au montage du composant, sans clic utilisateur.
+              Bug connu rencontré sur SafeScol (Next.js équivalent: prefetch={false}).
+            */}
+            <Link
+              to="/deconnexion"
+              preload={false}
+              className="text-[10px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            >
+              Déconnexion
+            </Link>
           </div>
         </div>
       </div>
