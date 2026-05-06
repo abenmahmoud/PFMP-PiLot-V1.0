@@ -466,3 +466,155 @@ drop trigger if exists profiles_set_updated_at on profiles;
 create trigger profiles_set_updated_at
   before update on profiles
   for each row execute function set_updated_at();
+
+-- ---------------------------------------------------------------------
+-- Sprint 3 - RLS hardening
+-- ---------------------------------------------------------------------
+
+-- user_roles has RLS enabled and needs explicit read/write policies.
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+     where schemaname = 'public'
+       and tablename = 'user_roles'
+       and policyname = 'user_roles_read'
+  ) then
+    create policy user_roles_read on user_roles for select
+      using (
+        is_superadmin()
+        or user_id = auth.uid()
+        or establishment_id = current_establishment_id()
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+     where schemaname = 'public'
+       and tablename = 'user_roles'
+       and policyname = 'user_roles_write'
+  ) then
+    create policy user_roles_write on user_roles for all
+      using (
+        is_superadmin()
+        or (
+          establishment_id = current_establishment_id()
+          and exists (
+            select 1 from profiles
+             where id = auth.uid() and role in ('admin', 'ddfpt')
+          )
+        )
+      )
+      with check (
+        is_superadmin()
+        or (
+          establishment_id = current_establishment_id()
+          and exists (
+            select 1 from profiles
+             where id = auth.uid() and role in ('admin', 'ddfpt')
+          )
+        )
+      );
+  end if;
+end $$;
+
+-- Multi-tenant performance indexes.
+create index if not exists idx_classes_establishment
+  on classes(establishment_id);
+create index if not exists idx_teachers_establishment
+  on teachers(establishment_id);
+create index if not exists idx_companies_establishment
+  on companies(establishment_id);
+create index if not exists idx_tutors_establishment
+  on tutors(establishment_id);
+create index if not exists idx_pfmp_periods_establishment
+  on pfmp_periods(establishment_id);
+create index if not exists idx_placements_establishment
+  on placements(establishment_id);
+create index if not exists idx_teacher_assignments_establishment
+  on teacher_assignments(establishment_id);
+create index if not exists idx_establishment_settings_establishment
+  on establishment_settings(establishment_id);
+create index if not exists idx_user_roles_establishment
+  on user_roles(establishment_id);
+create index if not exists idx_user_roles_user
+  on user_roles(user_id);
+
+create index if not exists idx_alerts_establishment_created
+  on alerts(establishment_id, created_at desc);
+create index if not exists idx_visits_establishment_created
+  on visits(establishment_id, created_at desc);
+create index if not exists idx_audit_logs_establishment_created
+  on audit_logs(establishment_id, created_at desc);
+create index if not exists idx_documents_establishment_created
+  on documents(establishment_id, created_at desc);
+
+create or replace function prevent_establishment_id_change()
+returns trigger
+language plpgsql
+as $$
+begin
+  if old.establishment_id is distinct from new.establishment_id then
+    if not is_superadmin() then
+      raise exception 'establishment_id cannot be changed (security: cross-tenant data move blocked)';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+do $$
+declare
+  t text;
+begin
+  for t in select unnest(array[
+    'classes', 'students', 'teachers', 'companies', 'tutors',
+    'pfmp_periods', 'placements', 'teacher_assignments',
+    'visits', 'documents', 'alerts', 'ai_interactions',
+    'audit_logs', 'establishment_settings', 'user_roles'
+  ])
+  loop
+    if not exists (
+      select 1
+        from pg_trigger tr
+        join pg_class c on c.oid = tr.tgrelid
+        join pg_namespace n on n.oid = c.relnamespace
+       where tr.tgname = 'prevent_tenant_change'
+         and n.nspname = 'public'
+         and c.relname = t
+         and not tr.tgisinternal
+    ) then
+      execute format(
+        'create trigger prevent_tenant_change before update on %I '
+        'for each row execute function prevent_establishment_id_change()',
+        t
+      );
+    end if;
+  end loop;
+end $$;
+
+create or replace view rls_audit as
+select
+  c.relname as table_name,
+  c.relrowsecurity as rls_enabled,
+  count(p.polname) as policy_count
+from pg_class c
+left join pg_policy p on p.polrelid = c.oid
+where c.relkind = 'r'
+  and c.relnamespace = 'public'::regnamespace
+  and c.relname in (
+    'establishments', 'profiles', 'user_roles',
+    'classes', 'students', 'teachers', 'companies', 'tutors',
+    'pfmp_periods', 'pfmp_period_classes', 'placements',
+    'teacher_assignments', 'visits', 'visit_reports',
+    'documents', 'alerts', 'ai_interactions',
+    'audit_logs', 'establishment_settings'
+  )
+group by c.relname, c.relrowsecurity
+order by c.relname;
+
+revoke all on rls_audit from public, authenticated, anon;
+grant select on rls_audit to authenticated;
+
+comment on view rls_audit is
+  'Audit view: confirms every business table has RLS enabled and at least one policy. Used in CI tests.';
