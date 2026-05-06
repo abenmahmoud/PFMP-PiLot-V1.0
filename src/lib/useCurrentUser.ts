@@ -1,6 +1,9 @@
 import { useSyncExternalStore } from 'react'
 import { profiles, CURRENT_USER_ID } from '@/data/demo'
 import type { Profile } from '@/types'
+import type { ProfileRow } from './database.types'
+import { useAuth } from './AuthProvider'
+import { isDemoMode } from './supabase'
 
 const STORAGE_KEY = 'pfmp_demo_user'
 
@@ -20,6 +23,27 @@ function subscribe(cb: () => void) {
 }
 
 export function useCurrentUser(): Profile {
-  const id = useSyncExternalStore(subscribe, getStoredId, () => CURRENT_USER_ID)
-  return profiles.find((p) => p.id === id) || profiles.find((p) => p.id === CURRENT_USER_ID)!
+  const auth = useAuth()
+  const demoId = useSyncExternalStore(subscribe, getStoredId, () => CURRENT_USER_ID)
+
+  if (isDemoMode() || !auth.profile) {
+    return (
+      profiles.find((p) => p.id === demoId) ||
+      profiles.find((p) => p.id === CURRENT_USER_ID)!
+    )
+  }
+
+  return profileRowToProfile(auth.profile)
+}
+
+function profileRowToProfile(row: ProfileRow): Profile {
+  return {
+    id: row.id,
+    establishmentId: row.establishment_id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email,
+    role: row.role,
+    avatarColor: row.avatar_color ?? undefined,
+  }
 }

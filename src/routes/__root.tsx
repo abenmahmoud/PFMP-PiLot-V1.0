@@ -7,6 +7,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeader } from '@tanstack/react-start/server'
 
 import '../styles.css'
+import { AuthProvider } from '@/lib/AuthProvider'
 import {
   resolveServerTenant,
   type ServerTenantContext,
@@ -53,7 +54,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <Scripts />
       </body>
     </html>

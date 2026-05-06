@@ -297,7 +297,19 @@ create or replace function current_establishment_id()
 returns uuid
 language sql stable
 as $$
-  select establishment_id from profiles where id = auth.uid();
+  select coalesce(
+    -- superadmin uniquement : lit le claim user_metadata.active_establishment_id
+    case
+      when (select role = 'superadmin' from profiles where id = auth.uid()) then
+        nullif(
+          (auth.jwt() -> 'user_metadata' ->> 'active_establishment_id'),
+          ''
+        )::uuid
+      else null
+    end,
+    -- fallback standard : establishment_id du profil
+    (select establishment_id from profiles where id = auth.uid())
+  );
 $$;
 
 -- ---------------------------------------------------------------------
@@ -410,3 +422,47 @@ create index if not exists idx_documents_establishment on documents(establishmen
 create index if not exists idx_alerts_establishment on alerts(establishment_id);
 create index if not exists idx_ai_interactions_establishment on ai_interactions(establishment_id);
 create index if not exists idx_audit_logs_establishment on audit_logs(establishment_id);
+
+-- ---------------------------------------------------------------------
+-- Auth profile bootstrap and timestamps
+-- ---------------------------------------------------------------------
+create or replace function handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, first_name, last_name, role, establishment_id)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data ->> 'first_name', ''),
+    coalesce(new.raw_user_meta_data ->> 'last_name', ''),
+    'eleve',
+    nullif(new.raw_user_meta_data ->> 'establishment_id', '')::uuid
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_user();
+
+create or replace function set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_set_updated_at on profiles;
+create trigger profiles_set_updated_at
+  before update on profiles
+  for each row execute function set_updated_at();

@@ -1,14 +1,37 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Lock, Mail, ArrowRight, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input, Label } from '@/components/ui/Field'
+import { signInWithPassword } from '@/lib/auth'
+import { isDemoMode } from '@/lib/supabase'
 
 export const Route = createFileRoute('/login')({ component: LoginPage })
 
 function LoginPage() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (isDemoMode()) {
+      navigate({ to: '/dashboard' })
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    const result = await signInWithPassword(email, password)
+    setSubmitting(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    navigate({ to: '/dashboard' })
+  }
+
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
       <div className="hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-[var(--color-brand)] via-[var(--color-brand-700)] to-[#0b1f5b] text-white">
@@ -39,7 +62,7 @@ function LoginPage() {
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
             Accédez à votre espace PFMP Pilot AI.
           </p>
-          <form className="mt-6 space-y-4" onSubmit={(e) => e.preventDefault()}>
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <div>
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -68,9 +91,16 @@ function LoginPage() {
                 />
               </div>
             </div>
-            <Button type="submit" className="w-full" size="lg" iconRight={<ArrowRight className="w-4 h-4" />}>
-              Se connecter
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              iconRight={<ArrowRight className="w-4 h-4" />}
+              disabled={submitting}
+            >
+              {submitting ? 'Connexion...' : 'Se connecter'}
             </Button>
+            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
           </form>
           <div className="mt-6 rounded-lg border border-dashed border-[var(--color-border-strong)] p-4 text-xs text-[var(--color-text-muted)]">
             <p className="font-medium text-[var(--color-text)] mb-1">Mode démo</p>
