@@ -42,8 +42,13 @@ src/
 │
 ├── lib/
 │   ├── cn.ts                 # className merger
-│   ├── supabase.ts           # Stub typé en attendant @supabase/supabase-js
-│   └── useCurrentUser.ts     # Hook qui lit le rôle démo dans localStorage
+│   ├── supabase.ts           # Client Supabase lazy + helpers env (isDemoMode, isSupabaseConfigured)
+│   ├── auth.ts               # signInWithPassword, fetchProfile, buildAuthState, subscription
+│   ├── tenant.ts             # Multi-tenant : extractTenantSlug, getTenantFromHostname
+│   ├── permissions.ts        # Réplique RLS côté client (UX), pas la sécurité
+│   ├── audit.ts              # logAudit() — trace dans audit_logs
+│   ├── database.types.ts     # Row types nommés (regénérer via supabase gen types)
+│   └── useCurrentUser.ts     # Hook démo (localStorage). Sera remplacé par AuthProvider
 │
 ├── routes/                   # File-based routing (TanStack Router)
 │   ├── __root.tsx
@@ -78,7 +83,10 @@ src/
 └── styles.css                # Tokens @theme + reset minimal
 
 supabase/
-└── schema.sql                # Tables, enums, triggers, RLS multi-tenant
+├── migrations/
+│   └── 0001_init.sql         # Schéma complet (tables, enums, triggers, RLS, multi-tenant Vercel)
+├── seed.sql                  # Données de démo (Lycée Jean Moulin + 4 lycées superadmin)
+└── README.md                 # Procédure migration / seed / comptes démo
 ```
 
 ## Routing
@@ -99,7 +107,7 @@ Le `routeTree.gen.ts` est régénéré par le plugin Vite à chaque dev/build.
 - **`<RoleGuard allow={[...]}>`** protège le rendu d'une page (rendu de fallback EmptyState sinon).
 - **`useCurrentUser()`** lit l'utilisateur démo depuis `localStorage`. Sera remplacé par un hook qui lit la session Supabase Auth.
 
-Pour la séparation par établissement, voir RLS dans `supabase/schema.sql` :
+Pour la séparation par établissement, voir RLS dans `supabase/migrations/0001_init.sql` :
 `is_superadmin()`, `current_establishment_id()`, et politiques `tenant_read` / `tenant_write` générées en boucle pour toutes les tables métier.
 
 ## Architecture IA
@@ -143,27 +151,35 @@ Règles invariantes (codées en dur dans les prompts) :
 
 ## Décisions non-évidentes
 
-- **Pas de `@supabase/supabase-js` dans les dépendances** pour cette phase. `src/lib/supabase.ts` est un stub typé. Ajouter le client quand les variables d'env sont disponibles. La signature est conçue pour minimiser les changements.
-- **Switcher de rôle dans la sidebar** — uniquement présent pour la démo. À retirer / cacher derrière un flag dès que Supabase Auth est branché.
+- **`@supabase/supabase-js` est installé**. `src/lib/supabase.ts` expose `getSupabase()` (lazy, typage non paramétré en attendant `supabase gen types`). `src/lib/auth.ts`, `src/lib/tenant.ts`, `src/lib/permissions.ts`, `src/lib/audit.ts` sont prêts mais **aucune page ne les utilise encore** — le frontend reste sur `data/demo.ts` derrière le flag `VITE_DEMO_MODE`.
+- **Switcher de rôle dans la sidebar** — uniquement présent pour la démo. À cacher derrière `import.meta.env.PROD && !VITE_DEMO_MODE` quand Supabase Auth sera branchée page par page.
 - **`__root.tsx` n'a pas de `component`**, seulement un `shellComponent`. C'est intentionnel : le shell reçoit les routes enfants via sa prop `children` (équivalent Outlet pour TanStack Start).
 - **Les liens d'alertes utilisent `Link` typé via discriminant sur `relatedEntity.type`** dans `AlertList.tsx`. Cela garantit la sécurité de typage TanStack Router malgré des cibles hétérogènes.
 - **Le formulaire de visite a un footer sticky** pour garder « Brouillon / Valider » accessibles pendant la saisie terrain.
 - **Les générations IA mockées sont déterministes** par mot-clé du prompt (« relance », « rapport », « point », « retard »). C'est volontaire pour rendre la démo crédible sans appel réseau.
+- **Hosting Vercel via Nitro** (et non plus Netlify). Le `vite.config.ts` charge `nitro/vite` qui détecte automatiquement l'environnement Vercel via `VERCEL=1` et génère `.vercel/output/`. Voir `vercel.json` pour `framework: null` (force Vercel à ne pas appliquer un preset par-dessus).
+- **Migration SQL consolidée** : `supabase/migrations/0001_init.sql` (1405 lignes, 26 tables, 92 policies, 71 index). Idempotente, testée bout-en-bout sur Postgres 16. Inclut le multi-tenant Vercel (`slug`, `subdomain`, `custom_domain`, `domain_verified`, `primary_color`, `status`).
+- **Database typing** : `database.types.ts` expose des Row types nommés (`StudentRow`, `VisitRow`, etc.) mais pas de `Database` global — sera regénéré via `supabase gen types typescript --project-id <id>` une fois le projet Supabase créé.
 
 ## Prochaines étapes recommandées
 
-1. Brancher `@supabase/supabase-js`, ajouter les variables d'env Netlify, remplacer le stub `lib/supabase.ts`.
-2. Implémenter Supabase Auth ; `useCurrentUser()` lira la session.
-3. Remplacer les imports de `data/demo.ts` par des loaders TanStack Router qui requêtent Supabase.
-4. Connecter `aiService.ts` à une Edge Function Supabase (clé Anthropic / OpenAI côté serveur uniquement).
-5. Implémenter l'import CSV/Excel réel (parsing côté client, validation Zod, écriture en lots).
-6. Génération PDF (conventions, attestations, comptes rendus) via `pdf-lib` ou Edge Function.
-7. Accès tuteur entreprise via tokens magic-link (table `tutor_access_tokens` à ajouter).
-8. Tests Playwright pour les parcours référent, DDFPT et superadmin.
+1. Créer le projet Supabase (région EU pour RGPD), pousser `supabase db push` (ou coller la migration dans le SQL Editor), créer les buckets Storage privés (`documents-private`, `proof-files`, `generated-pdfs`, `company-stamps`).
+2. Régénérer `src/lib/database.types.ts` via `supabase gen types typescript --project-id <id> > src/lib/database.types.ts`. Cela typera automatiquement `getSupabase()` et tous les services à venir.
+3. Câbler `useCurrentUser()` sur `auth.buildAuthState()` derrière le flag `VITE_DEMO_MODE`. Ajouter un `AuthProvider` à la racine.
+4. Brancher `/login` sur `signInWithPassword()`. Garder le bouton "Entrer dans la démo" en `import.meta.env.DEV`.
+5. Créer `src/services/*` (un service par domaine) qui lisent Supabase, retournent les Row types. Migrer pages dans cet ordre : `/dashboard` → `/students` → `/students/$id` → `/companies` → `/documents` → `/my-students` → `/superadmin`.
+6. Brancher les mutations : création visite, validation visite, affectation référent, création entreprise.
+7. Connecter `aiService.ts` à une Edge Function Supabase (clé Anthropic / OpenAI côté serveur uniquement).
+8. Module signatures réel : génération PDF (`pdf-lib` côté Edge Function), workflow `tutor_access_tokens`, page publique `/sign/$token`.
+9. Middleware Vercel pour résolution hostname → tenant via `slug` / `custom_domain`.
+10. Tests Playwright pour les parcours référent, DDFPT et superadmin.
 
 ## Commandes
 
 ```bash
-npm run dev      # Dev server sur :3000
-npm run build    # Build production (sortie dans dist/)
+npm run dev          # Dev server sur :3000 (mode démo si pas de VITE_SUPABASE_URL)
+npm run typecheck    # tsc --noEmit
+npm run build        # Build production (Nitro génère .vercel/output sur Vercel, .output sinon)
+npm run check        # typecheck + build
+npm run clean        # supprime dist/ .vercel/ .output/ .netlify/
 ```
