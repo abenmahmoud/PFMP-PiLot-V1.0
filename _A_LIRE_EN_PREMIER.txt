@@ -1,0 +1,46 @@
+================================================================
+PFMP Pilot AI — Sprint A : fichiers à intégrer dans ton repo
+================================================================
+
+QUOI FAIRE :
+
+1. Ouvre ton dossier PFMP-PiLot-V1.0 cloné en local.
+
+2. Copie le contenu de ce ZIP dans ton repo en CONSERVANT la structure :
+   - vite.config.ts        → écrase la racine
+   - vercel.json           → écrase ou crée à la racine
+   - package.json          → écrase la racine
+   - README.md             → écrase la racine
+   - AGENTS.md             → écrase la racine
+   - src/lib/*.ts          → écrase / crée dans src/lib/
+   - src/server/*.ts       → CRÉE le dossier src/server/ et mets tenant-middleware.ts dedans
+   - supabase/migrations/  → CRÉE le sous-dossier migrations/ s'il n'existe pas
+   - supabase/seed.sql     → place dans supabase/
+   - supabase/README.md    → écrase ou crée dans supabase/
+   - supabase/MULTITENANT_SETUP.md → crée dans supabase/
+
+   ASTUCE : si tu fais "Extraire tout" du ZIP directement dans le dossier
+   PFMP-PiLot-V1.0, Windows va te demander pour chaque fichier existant
+   "Remplacer ?" — réponds "Oui à tout" et la structure sera correcte.
+
+3. À LA RACINE du repo, supprime ces 2 fichiers obsolètes :
+   - netlify.toml
+   - supabase/schema.sql
+
+4. Ouvre un terminal dans le dossier du repo et lance :
+   npm install
+   npm run typecheck
+   npm run build
+
+   Tu dois voir "✓ built in ~10s" sans erreur.
+
+5. Ouvre GitHub Desktop. Tu dois voir ~16 fichiers modifiés/créés.
+   Commit avec ce message :
+   feat: Supabase RLS + Vercel skeleton + multi-tenant (Sprint A)
+
+   Puis "Push origin".
+
+6. Vérifie Vercel : un nouveau build se lance automatiquement.
+   Le site doit continuer à marcher en mode démo (rien ne casse).
+
+================================================================
