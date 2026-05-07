@@ -48,11 +48,11 @@
 
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
-| P1.1 | Import CSV élèves | — | — | 🔵 |
-| P1.2 | Import CSV classes + profs | — | — | 🔵 |
-| P1.3 | Import XLSX entreprises | — | — | 🔵 |
-| P1.4 | Affectations PP → référents | — | — | 🔵 |
-| P1.5 | Périodes PFMP CRUD | — | — | 🔵 |
+| P1.1 | Import CSV élèves | `briefs/P1.1.md` ✅ | — | 🔵 prêt |
+| P1.2 | Import CSV classes + profs | `briefs/P1.2.md` ✅ | — | 🔵 prêt |
+| P1.3 | Import XLSX entreprises (+ migration 0006) | `briefs/P1.3.md` ✅ | — | 🔵 prêt |
+| P1.4 | Affectations PP → référents | `briefs/P1.4.md` ✅ | — | 🔵 prêt |
+| P1.5 | Périodes PFMP CRUD | `briefs/P1.5.md` ✅ | — | 🔵 prêt |
 
 ---
 
