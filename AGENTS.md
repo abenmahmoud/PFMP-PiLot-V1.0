@@ -183,3 +183,114 @@ npm run build        # Build production (Nitro génère .vercel/output sur Verce
 npm run check        # typecheck + build
 npm run clean        # supprime dist/ .vercel/ .output/ .netlify/
 ```
+
+---
+
+## 🎯 Hub projet — méthode de travail Claude ↔ Codex ↔ BraveHeart
+
+> Ajouté le 7 mai 2026. Cette section définit comment les 3 collaborateurs avancent ensemble.
+
+### Source de vérité
+
+- **`docs/VISION.md`** — produit final cible (figé, sacré, ne change pas sans décision explicite)
+- **`docs/ROADMAP.md`** — éclatement P0/P1/P2/P3 vivant
+- **`docs/SPRINTS.md`** — tableau de tracking des sprints (statut, PR, audit)
+- **`docs/briefs/PX.Y_*.md`** — un brief par sprint, format strict
+- **`docs/sprints/PX.Y_*.md`** — rapports d'exécution Codex + audits Claude
+- **`data-reference/`** — copies figées de référence (ex : `demo.reference.ts`)
+
+### Rôles des 3 collaborateurs
+
+**BraveHeart (Adel)** — décideur produit
+- Tranche les choix produit / commerciaux / éthiques
+- Valide les briefs avant exécution
+- Merge les PR après audit
+- Fournit les artefacts métier réels (conventions, livret de suivi, grilles compétences)
+- Teste en prod après chaque sprint
+
+**Claude (orchestration)** — co-architecte et reviewer
+- Audite le code existant avant de proposer un sprint
+- Rédige les briefs sprint en collaboration avec Codex
+- Pilote l'infrastructure (Supabase via Chrome MCP, Vercel, DNS)
+- Audite chaque PR Codex avant merge (clone + typecheck + revue critique)
+- Tient à jour `ROADMAP.md` et `SPRINTS.md`
+
+**Codex** — co-développeur
+- Lit le brief, **propose son plan d'attaque** dans `docs/sprints/PX.Y_plan.md` avant de coder
+- Code en autonomie une fois le plan validé
+- Ouvre une PR avec rapport au format strict
+- Dialogue avec Claude/BraveHeart si doute mid-execution
+
+**Codex n'est pas un ouvrier de Claude.** C'est un peer. Les briefs donnent le **pourquoi** et les **contraintes**, Codex décide le **comment** technique selon son expertise. Claude révise les choix avec respect.
+
+### Workflow d'un sprint
+
+```
+1. Claude rédige docs/briefs/PX.Y_titre.md
+   (objectif, contexte, contraintes non-négociables, critères d'acceptation, format rapport)
+
+2. BraveHeart lit le brief, valide ou demande modif
+
+3. Claude colle l'URL GitHub du brief à Codex avec consigne :
+   "Lis ce brief, propose ton plan d'attaque dans docs/sprints/PX.Y_plan.md
+    en commit séparé avant de toucher au code métier."
+
+4. Codex commit son plan. Claude révise. Dialogue éventuel.
+
+5. Codex code, ouvre une PR.
+
+6. Codex écrit son rapport dans docs/sprints/PX.Y_rapport.md
+   (format défini dans le brief : fichiers modifiés, décisions prises,
+    ce qui reste mocké, blockers, build/typecheck verts)
+
+7. Claude clone la PR, audit dans docs/sprints/PX.Y_audit.md
+   (verdict GO/CHANGES_REQUESTED, points de revue, suggestions)
+
+8. BraveHeart merge si Claude dit GO.
+
+9. SPRINTS.md mis à jour, sprint suivant ouvert.
+```
+
+### Format strict des briefs (template)
+
+```markdown
+# PX.Y — [Titre du sprint]
+
+## Objectif fonctionnel
+[1 phrase : ce que l'utilisateur final pourra faire après ce sprint]
+
+## Contexte
+[État actuel du code concerné, dépendances, ce qui doit rester intact]
+
+## Contraintes non-négociables
+- Mode démo (`VITE_DEMO_MODE=true`) doit continuer à fonctionner
+- Build et typecheck verts à la fin
+- RLS jamais contournée
+- Mobile-first si UI
+
+## Critères d'acceptation
+- [ ] Critère 1 vérifiable
+- [ ] Critère 2 vérifiable
+- ...
+
+## Fichiers concernés (audit Claude initial)
+- `src/...` (lecture)
+- `src/...` (écriture)
+- `supabase/migrations/...` (si nécessaire)
+
+## Format de rapport attendu (Codex)
+1. Fichiers modifiés/créés (liste)
+2. Décisions techniques prises (avec pourquoi)
+3. Ce qui reste mocké ou TODO
+4. Blockers rencontrés
+5. Preuves : build OK, typecheck OK, captures d'écran si UI
+
+## Estimation : X-Y heures
+```
+
+### Règles de PR
+
+- Une PR par sprint (squash merge sur main)
+- Titre : `PX.Y: [titre court]`
+- Description : copie du critère d'acceptation cochée
+- Audit Claude obligatoire avant merge (sauf cas trivial)
