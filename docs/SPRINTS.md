@@ -74,11 +74,11 @@
 
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
-| P3.1 | Token sécurisé tuteur (`/sign/:token`) | — | — | 🔵 |
-| P3.2 | Signature simple côté tuteur | — | — | 🔵 |
-| P3.3 | Dossier de preuve | — | — | 🔵 |
-| P3.4 | Assistant IA professeur (Edge Function) | — | — | 🔵 |
-| P3.5 | Exports archivage ZIP | — | — | 🔵 |
+| P3.1 | Token sécurisé tuteur (`/sign/:token`) (+ migration 0010) | `briefs/P3.1.md` ✅ | — | 🔵 prêt |
+| P3.2 | Signature simple côté tuteur (+ migration 0011) | `briefs/P3.2.md` ✅ | — | 🔵 prêt |
+| P3.3 | Dossier de preuve par élève (ZIP avec manifest) | `briefs/P3.3.md` ✅ | — | 🔵 prêt |
+| P3.4 | Assistant IA professeur (CR visite, Claude Haiku) | `briefs/P3.4.md` ✅ | — | 🔵 prêt |
+| P3.5 | Exports en lot classe/période/année (+ migration 0012) | `briefs/P3.5.md` ✅ | — | 🔵 prêt |
 
 ---
 
@@ -86,11 +86,11 @@
 
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
-| P4.1 | Landing page (nom final TBD) | — | — | 🔵 |
-| P4.2 | Tunnel demande de licence | — | — | 🔵 |
-| P4.3 | Backoffice superadmin onboarding | — | — | 🔵 |
-| P4.4 | eIDAS prestataire signature qualifiée | — | — | 🔵 |
-| P4.5 | Stripe abonnement annuel | — | — | 🔵 |
+| P4.1 | Landing page publique (Next.js/Astro) | `briefs/P4.1.md` ✅ | — | 🔵 prêt |
+| P4.2 | Tunnel demande de licence (+ migration 0013) | `briefs/P4.2.md` ✅ | — | 🔵 prêt |
+| P4.3 | Backoffice superadmin onboarding wizard (+ migration 0014) | `briefs/P4.3.md` ✅ | — | 🔵 prêt |
+| P4.4 | eIDAS prestataire Yousign (+ migration 0015) | `briefs/P4.4.md` ✅ | — | 🔵 prêt |
+| P4.5 | Stripe abonnement annuel (+ migration 0016) | `briefs/P4.5.md` ✅ | — | 🔵 prêt |
 
 ---
 
