@@ -60,13 +60,13 @@
 
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
-| P2.1 | Schema `formation_referential` + setup | — | — | 🔵 |
-| P2.2 | Module 27 : Analyseur IA superadmin | — | — | 🔵 |
-| P2.3 | Lien classe ↔ référentiel | — | — | 🔵 |
-| P2.4 | Module 26 onglet Coordonnées + workflow sensible | — | — | 🔵 |
-| P2.5 | Module 26 onglets Référentiels + Documents + Alertes | — | — | 🔵 |
-| P2.6 | Génération PDF templates + référentiel | — | — | 🔵 |
-| P2.7 | Page validation sensible superadmin | — | — | 🔵 |
+| P2.1 | Schema `formation_referential` + setup (+ migration 0005) | `briefs/P2.1.md` ✅ | — | 🔵 prêt |
+| P2.2 | Module 27 : Analyseur IA superadmin (Edge Function) | `briefs/P2.2.md` ✅ | — | 🔵 prêt |
+| P2.3 | Lien classe ↔ référentiel (avec heuristique) | `briefs/P2.3.md` ✅ | — | 🔵 prêt |
+| P2.4 | Module 26 onglet Coordonnées + workflow sensible (+ migration 0007) | `briefs/P2.4.md` ✅ | — | 🔵 prêt |
+| P2.5 | Module 26 onglets Référentiels + Documents + Alertes (+ migration 0008) | `briefs/P2.5.md` ✅ | — | 🔵 prêt |
+| P2.6 | Génération PDF templates + référentiel | `briefs/P2.6.md` ✅ | — | 🔵 prêt |
+| P2.7 | Page validation sensible superadmin (+ migration 0009) | `briefs/P2.7.md` ✅ | — | 🔵 prêt |
 
 ---
 
