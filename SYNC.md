@@ -33,7 +33,9 @@ adapte-toi. **Ne pas re-coder ce qui est déjà fait.**
 | **Owner code** | Codex |
 | **Auditeur** | Claude |
 | **Reviewer final** | BraveHeart |
-| **Statut** | 🟡 EN COURS — Codex doit reprendre à l'étape 5 |
+| **Statut** | 🟢 PR #7 EN REVIEW — Audit Claude GO, attente merge BraveHeart |
+| **PR** | [#7 — P0.1: Copie démo référence + audit imports demo](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/7) (Draft, branche `p0-1-demo-reference`, commit `1528d1d`) |
+| **Audit Claude** | [`docs/sprints/P0.1_pr_audit.md`](./docs/sprints/P0.1_pr_audit.md) — 🟢 GO |
 
 ### Étapes du sprint P0.1
 
@@ -41,12 +43,14 @@ adapte-toi. **Ne pas re-coder ce qui est déjà fait.**
 |---|---|---|---|
 | 1 | Audit du repo (relectures fichiers existants) | ✅ DONE | Codex |
 | 2 | Création `data-reference/demo.reference.ts` | ✅ DONE | Claude (commit `5b6831a` — Codex avait un blocker env) |
-| 3 | `useCurrentUser` : audit only (PAS de patch) | ⏭️ À DOC | Codex (audit only, voir P0.1_answers.md) |
-| 4 | `EmptyState` : audit only (PAS de modif) | ⏭️ À DOC | Codex (audit only, voir P0.1_answers.md) |
-| 5 | **Audit imports `@/data/demo`** (24 fichiers) | ⏳ À FAIRE | Codex |
-| 6 | Rapport `docs/sprints/P0.1_rapport.md` | ⏳ À FAIRE | Codex |
-| 7 | typecheck + build verts | ⏳ À FAIRE | Codex |
-| 8 | Ouvrir PR `P0.1: ...` depuis branche dédiée | ⏳ À FAIRE | Codex |
+| 3 | `useCurrentUser` : audit only (PAS de patch) | ✅ DONE | Codex (documenté dans rapport) |
+| 4 | `EmptyState` : audit only (PAS de modif) | ✅ DONE | Codex (documenté dans rapport) |
+| 5 | Audit imports `@/data/demo` (24 fichiers) | ✅ DONE | Codex (rapport très complet) |
+| 6 | Rapport `docs/sprints/P0.1_rapport.md` | ✅ DONE | Codex (commit `1528d1d`) |
+| 7 | typecheck + build verts | ✅ DONE | Codex (Vercel preview vert confirme) |
+| 8 | Ouvrir PR depuis branche dédiée | ✅ DONE | Codex (PR #7) |
+| 9 | Audit PR par Claude | ✅ DONE | Claude (`P0.1_pr_audit.md`, verdict GO) |
+| 10 | Merge par BraveHeart | ⏳ À FAIRE | BraveHeart |
 
 ### Documents liés au sprint en cours
 
