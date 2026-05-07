@@ -1,5 +1,7 @@
 # PFMP Pilot AI
 
+> 🚨 **POUR CODEX ET CLAUDE :** Avant de coder ou répondre, lire **[`SYNC.md`](./SYNC.md)** — c'est la source de vérité de l'état actuel du projet et des sprints en cours.
+
 Plateforme SaaS multi-établissement pour piloter les **Périodes de Formation en Milieu Professionnel** (PFMP) en lycée professionnel — CAP, Bac Pro, BTS. Mobile-first, conçue pour être utilisée pendant les visites de stage en entreprise.
 
 > Ce projet est totalement indépendant de SafeScol. Il est dédié au suivi des stages, des visites, des comptes rendus, des conventions, des attestations et au pilotage pédagogique des PFMP.
