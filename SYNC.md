@@ -38,17 +38,20 @@ adapte-toi. **Ne pas re-coder ce qui est déjà fait.**
 
 ### Étapes attendues du sprint P0.2
 
+⚠️ **Sprint d'audit, exception méthode :** pas de plan préalable, voir `P0.2_method_clarification.md`.
+
 | Étape | Description | Statut | Fait par |
 |---|---|---|---|
-| 1 | Lecture brief P0.2 + SYNC.md | ✅ DONE | Codex |
+| 1 | Lecture brief P0.2 + SYNC.md + clarification méthode | ✅ DONE | Codex |
 | 2 | Création branche `p0-2-validation-prod` | ✅ DONE | Codex |
-| 3 | Plan dans `docs/sprints/P0.2_plan.md` (commit + push) | ⏳ À FAIRE | Codex |
-| 4 | Audit du plan par Claude | ⏳ À FAIRE | Claude |
-| 5 | Exécution validation prod (login test, smoke tests, DB checks) | ⏳ À FAIRE | Codex |
-| 6 | Rapport `docs/sprints/P0.2_rapport.md` | ⏳ À FAIRE | Codex |
-| 7 | Ouvrir PR | ⏳ À FAIRE | Codex |
-| 8 | Audit PR par Claude | ⏳ À FAIRE | Claude |
-| 9 | Merge | ⏳ À FAIRE | BraveHeart (ou Claude via Chrome MCP si bloqué) |
+| 3 | Test login prod avec `test@pfmp-pilot.fr` | ⏳ À FAIRE | Codex (ou Claude via Chrome MCP) |
+| 4 | Test logout prod | ⏳ À FAIRE | Codex (ou Claude via Chrome MCP) |
+| 5 | Lancer `rls_isolation.sql` (5 tests RLS) | ⏳ À FAIRE | Codex (ou Claude via Chrome MCP) |
+| 6 | Audit `unprotected_tables = 0` | ⏳ À FAIRE | Codex (ou Claude via Chrome MCP) |
+| 7 | Rapport `docs/sprints/P0.2_rapport.md` | ⏳ À FAIRE | **Codex (analyse + rédaction obligatoire)** |
+| 8 | Ouvrir PR | ⏳ À FAIRE | Codex |
+| 9 | Audit PR par Claude | ⏳ À FAIRE | Claude |
+| 10 | Merge | ⏳ À FAIRE | BraveHeart (ou Claude via Chrome MCP si bloqué) |
 
 ### ✅ Sprint précédent : P0.1 — DONE
 
@@ -64,7 +67,9 @@ adapte-toi. **Ne pas re-coder ce qui est déjà fait.**
 | Fichier | Auteur | Commit | Lecture obligatoire ? |
 |---|---|---|---|
 | [`docs/briefs/P0.2_validation_prod.md`](./docs/briefs/P0.2_validation_prod.md) | Claude | `2ea6269` | ✅ Codex |
-| [`docs/sprints/P0.2_plan.md`](./docs/sprints/P0.2_plan.md) | Codex | (à créer) | ✅ Claude (à auditer) |
+| [`docs/sprints/P0.2_method_clarification.md`](./docs/sprints/P0.2_method_clarification.md) | Claude | `165cc8b` | ✅ **Codex (À LIRE EN PRIORITÉ)** |
+
+⚠️ **Exception méthode pour P0.2** : sprint d'audit pur, **pas de plan préalable requis**. Codex peut exécuter directement les 4 étapes du brief et écrire le rapport. Pour les sprints de code (P0.3+) : retour au protocole standard plan → audit → code → rapport.
 
 ### Documents archivés du sprint précédent (P0.1, terminé)
 
@@ -176,7 +181,9 @@ selon les briefs P0/P1/P2/P3/P4.
 ## 📊 Historique des commits récents (mis à jour à chaque push)
 
 ```
-117e86b  ───      Merge pull request #7 (P0.1 done) ⭐ NEW
+165cc8b  Claude   P0.2: clarification methode (sprint audit, pas de plan requis) ⭐ NEW
+88a9a8a  Claude   [SYNC] P0.1 mergee (PR #7), bascule sur P0.2
+117e86b  ───      Merge pull request #7 (P0.1 done)
 1528d1d  Codex    P0.1: add demo import audit report
 a05ea47  Claude   P0.1: audit Claude PR #7 - verdict GO
 c12f8c7  Claude   [SYNC] Document central de synchronisation multi-IA
@@ -231,5 +238,5 @@ Si on est tous bloqués → conversation directe avec BraveHeart.
 
 ---
 
-**Dernière mise à jour :** 2026-05-07 par Claude (post-merge PR #7)
-**Prochaine action attendue :** Codex écrit `docs/sprints/P0.2_plan.md` (commit + push)
+**Dernière mise à jour :** 2026-05-07 par Claude (clarification méthode P0.2)
+**Prochaine action attendue :** Codex exécute les 4 étapes du brief P0.2 (avec aide Claude via Chrome MCP si bloqué) puis écrit `docs/sprints/P0.2_rapport.md`
