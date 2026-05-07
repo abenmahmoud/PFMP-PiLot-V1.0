@@ -1,10 +1,10 @@
-# PFMP Pilot — Sprints tracking
+# PFMP Pilot — Sprints tracking (v2)
 
 > **Source de vérité opérationnelle.**
 > Mis à jour à chaque ouverture/fermeture de sprint.
 > Référence pour Claude (orchestration) et Codex (exécution).
 
-**Dernière mise à jour :** 7 mai 2026
+**Dernière mise à jour :** 7 mai 2026 (v2 alignée VISION v2 + ROADMAP v2)
 
 ---
 
@@ -32,51 +32,65 @@
 
 | ID | Titre | Brief | Plan Codex | PR | Audit | Statut |
 |---|---|---|---|---|---|---|
-| P0.1 | Copie démo référence + cleanup useCurrentUser | `briefs/P0.1.md` | — | — | — | 🔵 |
-| P0.2 | Validation prod Sprint 3 | — | — | — | — | 🔵 |
-| P0.3 | Dashboard lit Supabase | — | — | — | — | 🔵 |
-| P0.4 | Students lecture Supabase | — | — | — | — | 🔵 |
-| P0.5 | Companies lecture Supabase | — | — | — | — | 🔵 |
-| P0.6 | My students filtré référent | — | — | — | — | 🔵 |
-| P0.7 | createVisit réel | — | — | — | — | 🔵 |
-| P0.8 | Validation visite CR | — | — | — | — | 🔵 |
-| P0.9 | Empty states + RoleGuard | — | — | — | — | 🔵 |
+| P0.1 | Copie démo réf + cleanup useCurrentUser | `briefs/P0.1.md` ✅ | `sprints/P0.1_plan.md` ✅ | — | `sprints/P0.1_audit_plan.md` GO | 🔵 prêt à coder |
+| P0.2 | Validation prod Sprint 3 | `briefs/P0.2.md` ✅ | — | — | — | 🔵 |
+| P0.3 | Dashboard lit Supabase | `briefs/P0.3.md` ✅ | — | — | — | 🔵 |
+| P0.4 | Students lecture Supabase | `briefs/P0.4.md` ✅ | — | — | — | 🔵 |
+| P0.5 | Companies lecture Supabase | `briefs/P0.5.md` ✅ | — | — | — | 🔵 |
+| P0.6 | My students filtré référent | `briefs/P0.6.md` ✅ | — | — | — | 🔵 |
+| P0.7 | createVisit réel | `briefs/P0.7.md` ✅ | — | — | — | 🔵 |
+| P0.8 | Validation visite CR | `briefs/P0.8.md` ✅ | — | — | — | 🔵 |
+| P0.9 | Empty states + RoleGuard | `briefs/P0.9.md` ✅ | — | — | — | 🔵 |
 
 ---
 
-## P1 — Productivité établissement
+## P1 — Productivité établissement de base
 
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
-| P1.1 | Import CSV élèves/classes/profs | — | — | 🔵 |
-| P1.2 | Affectations élève → prof référent | — | — | 🔵 |
-| P1.3 | Documents lecture + association | — | — | 🔵 |
-| P1.4 | Audit logs actifs | — | — | 🔵 |
-| P1.5 | Superadmin stats agrégées | — | — | 🔵 |
+| P1.1 | Import CSV élèves | — | — | 🔵 |
+| P1.2 | Import CSV classes + profs | — | — | 🔵 |
+| P1.3 | Import XLSX entreprises | — | — | 🔵 |
+| P1.4 | Affectations PP → référents | — | — | 🔵 |
+| P1.5 | Périodes PFMP CRUD | — | — | 🔵 |
 
 ---
 
-## P2 — Documents et signatures
+## P2 — 🆕 Intelligence référentielle (différenciateur produit)
 
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
-| P2.1 | Génération PDF (convention, attestation) | — | — | 🔵 |
-| P2.2 | Token sécurisé tuteur (`/sign/:token`) | — | — | 🔵 |
-| P2.3 | Signature simple côté tuteur | — | — | 🔵 |
-| P2.4 | Dossier de preuve | — | — | 🔵 |
-| P2.5 | Assistant IA professeur | — | — | 🔵 |
+| P2.1 | Schema `formation_referential` + setup | — | — | 🔵 |
+| P2.2 | Module 27 : Analyseur IA superadmin | — | — | 🔵 |
+| P2.3 | Lien classe ↔ référentiel | — | — | 🔵 |
+| P2.4 | Module 26 onglet Coordonnées + workflow sensible | — | — | 🔵 |
+| P2.5 | Module 26 onglets Référentiels + Documents + Alertes | — | — | 🔵 |
+| P2.6 | Génération PDF templates + référentiel | — | — | 🔵 |
+| P2.7 | Page validation sensible superadmin | — | — | 🔵 |
 
 ---
 
-## P3 — Commercial et scaling
+## P3 — Signatures et workflow tuteur
 
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
-| P3.1 | Landing page pfmp-pilot.fr | — | — | 🔵 |
-| P3.2 | Tunnel demande de licence | — | — | 🔵 |
-| P3.3 | Backoffice superadmin onboarding | — | — | 🔵 |
-| P3.4 | Intégration eIDAS | — | — | 🔵 |
-| P3.5 | Stripe abonnement annuel | — | — | 🔵 |
+| P3.1 | Token sécurisé tuteur (`/sign/:token`) | — | — | 🔵 |
+| P3.2 | Signature simple côté tuteur | — | — | 🔵 |
+| P3.3 | Dossier de preuve | — | — | 🔵 |
+| P3.4 | Assistant IA professeur (Edge Function) | — | — | 🔵 |
+| P3.5 | Exports archivage ZIP | — | — | 🔵 |
+
+---
+
+## P4 — Commercial et scaling
+
+| ID | Titre | Brief | PR | Statut |
+|---|---|---|---|---|
+| P4.1 | Landing page (nom final TBD) | — | — | 🔵 |
+| P4.2 | Tunnel demande de licence | — | — | 🔵 |
+| P4.3 | Backoffice superadmin onboarding | — | — | 🔵 |
+| P4.4 | eIDAS prestataire signature qualifiée | — | — | 🔵 |
+| P4.5 | Stripe abonnement annuel | — | — | 🔵 |
 
 ---
 
@@ -100,16 +114,39 @@
   Éducation Nationale (pas branding Essuf).
 - Branding Essuf reste pour Essuf-Group lui-même (holding) + Essuf
   Music.
+- Nom final non encore décidé (BraveHeart cherche mieux).
 
 ### 7 mai 2026 — Modèle commercial
 - Décision : Standard / Premium IA + add-on Mise en place obligatoire
   (chaque lycée = formulaires + livret + grilles compétences
   sur-mesure).
 - Trial : 90 jours **après signature contrat**.
-- Stripe : pas avant P3.5.
+- Stripe : pas avant P4.5.
+- Tarifs cibles : placeholders pour l'instant, décidés plus tard.
 
 ### 7 mai 2026 — Pilote zéro
 - Décision : Lycée Polyvalent Blaïse Cendrars (école de BraveHeart),
   gratuit, valider en réel.
-- BraveHeart fournit : convention PFMP réelle, livret de suivi, grilles
-  compétences pour 1 ou 2 métiers.
+- 2 Bac Pro (MELEC, PCEPC) + 2 CAP (AQE, ETL).
+- BraveHeart a fourni : convention type, 6 livrets PFMP, attestations,
+  CSV 1158 élèves, XLSX 646 entreprises.
+- Conformité RGPD : CSV/XLSX nominatifs en `.gitignore`, jamais en
+  repo public.
+
+### 7 mai 2026 — VISION v2 (règle d'or référentielle)
+- Décision : ajout du **module 26** (espace paramétrage avec 4
+  sous-onglets) et **module 27** (analyseur IA superadmin).
+- Élève → classe → `formation_referential` → tout déduit
+  automatiquement (convention, livret, attestation, AP, compétences).
+- Champs sensibles (RNE, raison sociale, proviseur signataire,
+  assureur, mentions légales) : modification admin → validation
+  superadmin obligatoire.
+- Phase P2 ajoutée à la roadmap (entre l'ancienne P1 et l'ancienne
+  P2 documents/signatures, qui devient P3).
+
+### 7 mai 2026 — Briefs P0.1-P0.9 alignés v2
+- Décision : tous les briefs P0 incluent une note "Note v2" qui
+  rappelle de **NE PAS anticiper** la logique référentielle.
+- P0 reste "lecture Supabase basique des tables existantes".
+- La règle d'or arrive en P2 avec un sprint dédié à la migration des
+  classes vers `formation_referential_id`.
