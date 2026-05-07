@@ -28,39 +28,55 @@ adapte-toi. **Ne pas re-coder ce qui est déjà fait.**
 
 | Champ | Valeur |
 |---|---|
-| **Sprint actif** | `P0.1` (et UNIQUEMENT P0.1) |
-| **Brief** | [`docs/briefs/P0.1_copy_demo_reference.md`](./docs/briefs/P0.1_copy_demo_reference.md) |
+| **Sprint actif** | `P0.2` (et UNIQUEMENT P0.2) |
+| **Brief** | [`docs/briefs/P0.2_validation_prod.md`](./docs/briefs/P0.2_validation_prod.md) |
 | **Owner code** | Codex |
 | **Auditeur** | Claude |
 | **Reviewer final** | BraveHeart |
-| **Statut** | 🟢 PR #7 EN REVIEW — Audit Claude GO, attente merge BraveHeart |
-| **PR** | [#7 — P0.1: Copie démo référence + audit imports demo](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/7) (Draft, branche `p0-1-demo-reference`, commit `1528d1d`) |
-| **Audit Claude** | [`docs/sprints/P0.1_pr_audit.md`](./docs/sprints/P0.1_pr_audit.md) — 🟢 GO |
+| **Statut** | 🔵 PRÊT À DÉMARRER — Codex doit créer son plan dans `docs/sprints/P0.2_plan.md` |
+| **Branche** | `p0-2-validation-prod` (déjà créée par Codex côté local, à push quand le plan sera prêt) |
 
-### Étapes du sprint P0.1
+### Étapes attendues du sprint P0.2
 
 | Étape | Description | Statut | Fait par |
 |---|---|---|---|
-| 1 | Audit du repo (relectures fichiers existants) | ✅ DONE | Codex |
-| 2 | Création `data-reference/demo.reference.ts` | ✅ DONE | Claude (commit `5b6831a` — Codex avait un blocker env) |
-| 3 | `useCurrentUser` : audit only (PAS de patch) | ✅ DONE | Codex (documenté dans rapport) |
-| 4 | `EmptyState` : audit only (PAS de modif) | ✅ DONE | Codex (documenté dans rapport) |
-| 5 | Audit imports `@/data/demo` (24 fichiers) | ✅ DONE | Codex (rapport très complet) |
-| 6 | Rapport `docs/sprints/P0.1_rapport.md` | ✅ DONE | Codex (commit `1528d1d`) |
-| 7 | typecheck + build verts | ✅ DONE | Codex (Vercel preview vert confirme) |
-| 8 | Ouvrir PR depuis branche dédiée | ✅ DONE | Codex (PR #7) |
-| 9 | Audit PR par Claude | ✅ DONE | Claude (`P0.1_pr_audit.md`, verdict GO) |
-| 10 | Merge par BraveHeart | ⏳ À FAIRE | BraveHeart |
+| 1 | Lecture brief P0.2 + SYNC.md | ✅ DONE | Codex |
+| 2 | Création branche `p0-2-validation-prod` | ✅ DONE | Codex |
+| 3 | Plan dans `docs/sprints/P0.2_plan.md` (commit + push) | ⏳ À FAIRE | Codex |
+| 4 | Audit du plan par Claude | ⏳ À FAIRE | Claude |
+| 5 | Exécution validation prod (login test, smoke tests, DB checks) | ⏳ À FAIRE | Codex |
+| 6 | Rapport `docs/sprints/P0.2_rapport.md` | ⏳ À FAIRE | Codex |
+| 7 | Ouvrir PR | ⏳ À FAIRE | Codex |
+| 8 | Audit PR par Claude | ⏳ À FAIRE | Claude |
+| 9 | Merge | ⏳ À FAIRE | BraveHeart (ou Claude via Chrome MCP si bloqué) |
 
-### Documents liés au sprint en cours
+### ✅ Sprint précédent : P0.1 — DONE
+
+| Champ | Valeur |
+|---|---|
+| **PR** | [#7](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/7) — MERGÉE |
+| **Commit de merge** | `117e86b` |
+| **Date merge** | 2026-05-07 (par Claude via Chrome MCP, suite blocage outillage Codex côté `gh` et connecteur GitHub) |
+| **Livrable** | `docs/sprints/P0.1_rapport.md` (audit complet 24 fichiers `@/data/demo`) |
+
+### Documents liés au sprint en cours (P0.2)
 
 | Fichier | Auteur | Commit | Lecture obligatoire ? |
 |---|---|---|---|
-| [`docs/briefs/P0.1_copy_demo_reference.md`](./docs/briefs/P0.1_copy_demo_reference.md) | Claude | `6d7804d` | ✅ Codex |
-| [`docs/sprints/P0.1_plan.md`](./docs/sprints/P0.1_plan.md) | Codex | `3ad2c39` | ✅ Claude (audit) |
-| [`docs/sprints/P0.1_audit_plan.md`](./docs/sprints/P0.1_audit_plan.md) | Claude | `6095aed` | ✅ Codex |
-| [`docs/sprints/P0.1_questions.md`](./docs/sprints/P0.1_questions.md) | Codex | `7ca267a` | ✅ Claude (réponse) |
-| [`docs/sprints/P0.1_answers.md`](./docs/sprints/P0.1_answers.md) | Claude | `5b6831a` | ✅ **Codex (À LIRE EN PRIORITÉ)** |
+| [`docs/briefs/P0.2_validation_prod.md`](./docs/briefs/P0.2_validation_prod.md) | Claude | `2ea6269` | ✅ Codex |
+| [`docs/sprints/P0.2_plan.md`](./docs/sprints/P0.2_plan.md) | Codex | (à créer) | ✅ Claude (à auditer) |
+
+### Documents archivés du sprint précédent (P0.1, terminé)
+
+| Fichier | Auteur | Commit |
+|---|---|---|
+| [`docs/briefs/P0.1_copy_demo_reference.md`](./docs/briefs/P0.1_copy_demo_reference.md) | Claude | `6d7804d` |
+| [`docs/sprints/P0.1_plan.md`](./docs/sprints/P0.1_plan.md) | Codex | `3ad2c39` |
+| [`docs/sprints/P0.1_audit_plan.md`](./docs/sprints/P0.1_audit_plan.md) | Claude | `6095aed` |
+| [`docs/sprints/P0.1_questions.md`](./docs/sprints/P0.1_questions.md) | Codex | `7ca267a` |
+| [`docs/sprints/P0.1_answers.md`](./docs/sprints/P0.1_answers.md) | Claude | `5b6831a` |
+| [`docs/sprints/P0.1_rapport.md`](./docs/sprints/P0.1_rapport.md) | Codex | `1528d1d` |
+| [`docs/sprints/P0.1_pr_audit.md`](./docs/sprints/P0.1_pr_audit.md) | Claude | `a05ea47` |
 
 ---
 
@@ -68,7 +84,7 @@ adapte-toi. **Ne pas re-coder ce qui est déjà fait.**
 
 | Phase | Sprints | Briefs | Statut global |
 |---|---|---|---|
-| **P0** — Fondations production réelles | 9 sprints (P0.1 → P0.9) | 9 briefs ✅ | 🟡 P0.1 en cours |
+| **P0** — Fondations production réelles | 9 sprints (P0.1 → P0.9) | 9 briefs ✅ | 🟡 P0.1 ✅ done, P0.2 en cours |
 | **P1** — Productivité établissement | 5 sprints (P1.1 → P1.5) | 5 briefs ✅ | 🔵 prêt |
 | **P2** — Intelligence référentielle ⭐ | 7 sprints (P2.1 → P2.7) | 7 briefs ✅ | 🔵 prêt |
 | **P3** — Signatures + IA + preuve | 5 sprints (P3.1 → P3.5) | 5 briefs ✅ | 🔵 prêt |
@@ -160,6 +176,10 @@ selon les briefs P0/P1/P2/P3/P4.
 ## 📊 Historique des commits récents (mis à jour à chaque push)
 
 ```
+117e86b  ───      Merge pull request #7 (P0.1 done) ⭐ NEW
+1528d1d  Codex    P0.1: add demo import audit report
+a05ea47  Claude   P0.1: audit Claude PR #7 - verdict GO
+c12f8c7  Claude   [SYNC] Document central de synchronisation multi-IA
 c2ca8a5  Claude   docs: 10 briefs P3 + P4 (signatures + commercial + scaling)
 095f044  Claude   docs: 7 briefs P2.1-P2.7 (intelligence referentielle)
 5b6831a  Claude   P0.1: deblocage Codex - copie demo reference + reponses
@@ -211,5 +231,5 @@ Si on est tous bloqués → conversation directe avec BraveHeart.
 
 ---
 
-**Dernière mise à jour :** 2026-05-07 par Claude
-**Prochaine action attendue :** Codex pull/rebase + reprend P0.1 étape 5
+**Dernière mise à jour :** 2026-05-07 par Claude (post-merge PR #7)
+**Prochaine action attendue :** Codex écrit `docs/sprints/P0.2_plan.md` (commit + push)

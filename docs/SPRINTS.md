@@ -32,8 +32,8 @@
 
 | ID | Titre | Brief | Plan Codex | PR | Audit | Statut |
 |---|---|---|---|---|---|---|
-| P0.1 | Copie démo réf + cleanup useCurrentUser | `briefs/P0.1.md` ✅ | `sprints/P0.1_plan.md` ✅ | — | `sprints/P0.1_audit_plan.md` GO | 🔵 prêt à coder |
-| P0.2 | Validation prod Sprint 3 | `briefs/P0.2.md` ✅ | — | — | — | 🔵 |
+| P0.1 | Copie démo réf + audit imports | `briefs/P0.1.md` ✅ | `sprints/P0.1_plan.md` ✅ | [#7](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/7) | `sprints/P0.1_pr_audit.md` GO | ✅ MERGÉ (`117e86b`) |
+| P0.2 | Validation prod Sprint 3 | `briefs/P0.2.md` ✅ | — | — | — | 🟡 EN COURS (Codex prépare plan) |
 | P0.3 | Dashboard lit Supabase | `briefs/P0.3.md` ✅ | — | — | — | 🔵 |
 | P0.4 | Students lecture Supabase | `briefs/P0.4.md` ✅ | — | — | — | 🔵 |
 | P0.5 | Companies lecture Supabase | `briefs/P0.5.md` ✅ | — | — | — | 🔵 |
