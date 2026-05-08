@@ -188,21 +188,25 @@ export function subscribeToAuthChanges(callback: AuthSubscriber): () => void {
     return () => {}
   }
   const supabase = getSupabase()
-  const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (!session) {
-      callback({ ...initialAuthState, loading: false })
-      return
-    }
-    const profile = await fetchProfile(session.user.id)
-    callback({
-      loading: false,
-      session,
-      user: session.user,
-      profile,
-      role: profile?.role ?? null,
-      establishmentId: profile?.establishment_id ?? null,
-      error: profile ? null : 'Profil introuvable.',
-    })
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Supabase warns against awaiting other Supabase calls directly inside
+    // onAuthStateChange callbacks because it can deadlock the auth client.
+    window.setTimeout(async () => {
+      if (!session) {
+        callback({ ...initialAuthState, loading: false })
+        return
+      }
+      const profile = await fetchProfile(session.user.id)
+      callback({
+        loading: false,
+        session,
+        user: session.user,
+        profile,
+        role: profile?.role ?? null,
+        establishmentId: profile?.establishment_id ?? null,
+        error: profile ? null : 'Profil introuvable.',
+      })
+    }, 0)
   })
   return () => data.subscription.unsubscribe()
 }
