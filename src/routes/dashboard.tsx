@@ -1,22 +1,33 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import {
-  Users,
-  GraduationCap,
-  ClipboardCheck,
   AlertTriangle,
-  FileWarning,
-  Calendar,
-  Network,
   Building2,
+  Calendar,
+  ClipboardCheck,
+  FileWarning,
+  GraduationCap,
+  Network,
+  Plus,
+  Users,
 } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
 import { StatCard } from '@/components/StatCard'
 import { AlertList } from '@/components/AlertList'
 import { ActivityTimeline } from '@/components/ActivityTimeline'
 import { AiAssistantPanel } from '@/components/AiAssistantPanel'
+import { EmptyState } from '@/components/EmptyState'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { TeacherLoadIndicator } from '@/components/TeacherLoadIndicator'
+import { useAuth } from '@/lib/AuthProvider'
+import { isDemoMode } from '@/lib/supabase'
+import {
+  fetchDashboardData,
+  type DashboardData,
+} from '@/services/dashboard'
+import type { AlertRow, AuditLogRow } from '@/lib/database.types'
 import {
   alerts,
   activityLog,
@@ -37,6 +48,331 @@ export const Route = createFileRoute('/dashboard')({ component: DashboardPage })
 const TEACHER_OVERLOAD_THRESHOLD = 6
 
 function DashboardPage() {
+  if (isDemoMode()) return <DashboardDemo />
+  return <DashboardSupabase />
+}
+
+function DashboardSupabase() {
+  const auth = useAuth()
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (auth.loading) return
+    if (!auth.profile) {
+      setLoading(false)
+      return
+    }
+
+    let mounted = true
+    setLoading(true)
+    setError(null)
+
+    fetchDashboardData()
+      .then((nextData) => {
+        if (mounted) setData(nextData)
+      })
+      .catch((e) => {
+        if (mounted) setError(e instanceof Error ? e.message : String(e))
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [auth.loading, auth.profile])
+
+  if (auth.loading || loading) return <DashboardSkeleton />
+
+  if (!auth.profile) {
+    return (
+      <BareState
+        title="Session requise"
+        description="Connectez-vous avec un compte Supabase pour afficher le dashboard réel."
+        action={
+          <Link to="/login">
+            <Button>Retour à la connexion</Button>
+          </Link>
+        }
+      />
+    )
+  }
+
+  if (error) {
+    return (
+      <AppLayout title="Dashboard établissement" subtitle="Données Supabase">
+        <EmptyState
+          icon={<AlertTriangle className="w-5 h-5" />}
+          title="Impossible de charger le dashboard"
+          description={error}
+        />
+      </AppLayout>
+    )
+  }
+
+  if (!data) return null
+
+  const period = data.currentPeriod
+  const subtitle = period
+    ? `Données Supabase · ${period.name} · ${period.school_year}`
+    : 'Données Supabase · aucune période PFMP active'
+
+  return (
+    <AppLayout title="Dashboard établissement" subtitle={subtitle}>
+      {!period ? (
+        <EmptyState
+          icon={<Calendar className="w-5 h-5" />}
+          title="Aucune période PFMP en cours"
+          description="Créez ou activez une période PFMP pour commencer à suivre les affectations, visites et documents réels de l'établissement."
+          action={
+            <Link to="/pfmp-periods">
+              <Button iconLeft={<Plus className="w-4 h-4" />}>Créer une période PFMP</Button>
+            </Link>
+          }
+        />
+      ) : (
+        <DashboardSupabaseContent data={data} />
+      )}
+    </AppLayout>
+  )
+}
+
+function DashboardSupabaseContent({ data }: { data: DashboardData }) {
+  const { kpis, teacherLoads, companyNetwork, alerts: prodAlerts, activity } = data
+
+  return (
+    <>
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          label="Élèves en PFMP"
+          value={kpis.studentsInStage}
+          icon={<GraduationCap className="w-4 h-4" />}
+          delta={{ value: `/${kpis.studentsTotal} visibles`, tone: 'neutral' }}
+        />
+        <StatCard
+          label="Élèves sans entreprise"
+          value={kpis.studentsNoStage}
+          icon={<AlertTriangle className="w-4 h-4" />}
+          delta={{ value: `${kpis.assignmentRate}% affectés`, tone: 'neutral' }}
+        />
+        <StatCard
+          label="Visites réalisées"
+          value={kpis.visitsDone}
+          icon={<ClipboardCheck className="w-4 h-4" />}
+          delta={{ value: `${kpis.visitRate}% prévu`, tone: 'neutral' }}
+        />
+        <StatCard
+          label="Documents critiques"
+          value={kpis.criticalMissing}
+          icon={<FileWarning className="w-4 h-4" />}
+          delta={{
+            value: `${kpis.conventionsMissing} convention · ${kpis.attestationsMissing} attestation`,
+            tone: kpis.criticalMissing === 0 ? 'neutral' : 'down',
+          }}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div>
+              <CardTitle icon={<Users className="w-4 h-4" />}>
+                Charge des professeurs référents
+              </CardTitle>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                Seuil configuré à {TEACHER_OVERLOAD_THRESHOLD} élèves par référent
+                {teacherLoads.some((teacher) => teacher.overloaded) &&
+                  ` · ${teacherLoads.filter((teacher) => teacher.overloaded).length} surchargé(s)`}
+              </p>
+            </div>
+          </CardHeader>
+          <CardBody>
+            {teacherLoads.length === 0 ? (
+              <InlineEmpty message="Aucun professeur renseigné dans Supabase." />
+            ) : (
+              <ul className="space-y-3">
+                {teacherLoads.map((teacher) => (
+                  <li
+                    key={teacher.teacherId}
+                    className="flex items-center justify-between gap-4 text-sm"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-7 h-7 rounded-full bg-[var(--color-muted)] flex items-center justify-center text-[10px] font-semibold">
+                        {teacher.firstName[0]}
+                        {teacher.lastName[0]}
+                      </span>
+                      <span className="font-medium truncate">
+                        {teacher.firstName} {teacher.lastName}
+                      </span>
+                    </div>
+                    <TeacherLoadIndicator
+                      load={teacher.load}
+                      threshold={TEACHER_OVERLOAD_THRESHOLD}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle icon={<Calendar className="w-4 h-4" />}>Période en cours</CardTitle>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {data.currentPeriod?.name}
+              </p>
+            </div>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <ProgressRow label="Affectation" value={kpis.assignmentRate} />
+            <ProgressRow label="Visites réalisées" value={kpis.visitRate} />
+            <ProgressRow label="Documents en règle" value={kpis.documentsReadyRate} />
+          </CardBody>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div>
+              <CardTitle icon={<Network className="w-4 h-4" />}>
+                Réseau entreprises PFMP
+              </CardTitle>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Données Supabase · {companyNetwork.totalCompanies} entreprises visibles
+              </p>
+            </div>
+            <Badge tone="success">Réel</Badge>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <MiniStat
+                label="Actives sur la période"
+                value={companyNetwork.activeOnPeriod}
+                icon={<Building2 className="w-3.5 h-3.5" />}
+              />
+              <MiniStat label="Partenaires forts" value={companyNetwork.strongPartners} tone="success" />
+              <MiniStat label="À relancer" value={companyNetwork.toRecontact} tone="warning" />
+              <MiniStat
+                label="Familles couvertes"
+                value={`${companyNetwork.familiesCovered}/${companyNetwork.familiesTotal}`}
+              />
+            </div>
+
+            {companyNetwork.totalCompanies === 0 ? (
+              <InlineEmpty message="Aucune entreprise réelle n'est encore renseignée." />
+            ) : (
+              <>
+                {companyNetwork.toRecontactCompanies.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-text-subtle)] mb-1.5">
+                      À relancer cette semaine
+                    </p>
+                    <ul className="space-y-1">
+                      {companyNetwork.toRecontactCompanies.map((company) => (
+                        <li
+                          key={company.id}
+                          className="text-sm flex items-center justify-between gap-2"
+                        >
+                          <span className="truncate">{company.name}</span>
+                          <span className="text-xs text-[var(--color-text-muted)] truncate">
+                            {company.city ?? 'Ville non renseignée'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {companyNetwork.underrepresentedFamilies.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-text-subtle)] mb-1.5">
+                      Familles sous-représentées
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {companyNetwork.underrepresentedFamilies.map((family) => (
+                        <Badge key={family} tone="warning">
+                          {family}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle icon={<AlertTriangle className="w-4 h-4" />}>Alertes</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <DashboardAlertList alerts={prodAlerts} />
+          </CardBody>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Élèves et placements</CardTitle>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            <ProgressRow label="Affectés" value={kpis.assignmentRate} />
+            <ProgressRow label="Documents en règle" value={kpis.documentsReadyRate} />
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Vue agrégée réelle. Le détail par classe arrive avec P0.4/P1.2.
+            </p>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Top secteurs (réseau)</CardTitle>
+          </CardHeader>
+          <CardBody>
+            {companyNetwork.topSectors.length === 0 ? (
+              <InlineEmpty message="Aucun secteur renseigné." />
+            ) : (
+              <ul className="space-y-2">
+                {companyNetwork.topSectors.map((sector) => (
+                  <li
+                    key={sector.sector}
+                    className="text-sm flex items-center justify-between gap-2"
+                  >
+                    <span className="truncate">{sector.sector}</span>
+                    <Badge tone="info">{sector.count}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Activité récente</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <DashboardActivityList entries={activity} />
+          </CardBody>
+        </Card>
+      </section>
+
+      <p className="mt-4 text-xs text-[var(--color-text-muted)]">
+        Visites en retard signalées : {kpis.visitsLate}
+      </p>
+    </>
+  )
+}
+
+function DashboardDemo() {
   const period = pfmpPeriods.find((p) => p.status === 'in_progress')!
   const periodStudents = students.filter((s) => s.periodId === period.id)
   const inStage = periodStudents.filter(
@@ -61,21 +397,17 @@ function DashboardPage() {
     .filter((a) => a.establishmentId === ESTABLISHMENT_ID)
     .slice(0, 6)
 
-  // Réseau entreprises pour cet établissement
   const intelligence = buildCompanyIntelligence(ESTABLISHMENT_ID)
   const localCompanies = companies.filter((c) => c.establishmentId === ESTABLISHMENT_ID)
 
-  // Entreprises actives pour la période en cours
   const periodCompanyIds = new Set(
     periodStudents.map((s) => s.companyId).filter(Boolean) as string[],
   )
   const activePeriodCompanies = localCompanies.filter((c) => periodCompanyIds.has(c.id))
 
-  // Familles couvertes pendant la période
   const familiesCovered = new Set<ProfessionalFamily>()
   for (const c of activePeriodCompanies) familiesCovered.add(c.professionalFamily)
 
-  // Détection de familles sous-représentées (≤ 1 entreprise dans le réseau)
   const familyCount = new Map<ProfessionalFamily, number>()
   for (const c of localCompanies) {
     familyCount.set(c.professionalFamily, (familyCount.get(c.professionalFamily) ?? 0) + 1)
@@ -92,7 +424,6 @@ function DashboardPage() {
     (t) => t.studentLoad > TEACHER_OVERLOAD_THRESHOLD,
   )
 
-  // Documents critiques manquants = conventions et attestations
   const criticalMissing = missingConventions + missingAttestations
 
   return (
@@ -372,6 +703,97 @@ function DashboardPage() {
       </p>
     </AppLayout>
   )
+}
+
+function DashboardSkeleton() {
+  return (
+    <BareState title="Chargement du dashboard" description="Lecture des données Supabase..." />
+  )
+}
+
+function BareState({
+  title,
+  description,
+  action,
+}: {
+  title: string
+  description: string
+  action?: React.ReactNode
+}) {
+  return (
+    <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center p-6">
+      <div className="w-full max-w-lg rounded-xl border border-[var(--color-border)] bg-white p-8 text-center shadow-[var(--shadow-card)]">
+        <div className="mx-auto mb-4 grid grid-cols-4 gap-2">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-3 rounded-full bg-[var(--color-muted)] animate-pulse"
+            />
+          ))}
+        </div>
+        <h1 className="text-base font-semibold text-[var(--color-text)]">{title}</h1>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">{description}</p>
+        {action && <div className="mt-4">{action}</div>}
+      </div>
+    </div>
+  )
+}
+
+function DashboardAlertList({ alerts }: { alerts: AlertRow[] }) {
+  if (alerts.length === 0) return <InlineEmpty message="Aucune alerte active." />
+
+  return (
+    <ul className="divide-y divide-[var(--color-border)]">
+      {alerts.map((alert) => (
+        <li key={alert.id} className="py-3">
+          <div className="flex items-start gap-3">
+            <Badge tone={alert.severity === 'urgent' ? 'danger' : 'warning'}>
+              {alert.severity}
+            </Badge>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-[var(--color-text)]">{alert.message}</p>
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                {alert.type} · {new Date(alert.created_at).toLocaleDateString('fr-FR')}
+              </p>
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function DashboardActivityList({ entries }: { entries: AuditLogRow[] }) {
+  if (entries.length === 0) return <InlineEmpty message="Aucune activité récente." />
+
+  return (
+    <ul className="space-y-3">
+      {entries.map((entry) => (
+        <li key={entry.id} className="flex gap-3">
+          <div className="w-8 h-8 rounded-full bg-[var(--color-brand-50)] text-[var(--color-brand-700)] flex items-center justify-center shrink-0">
+            <ClipboardCheck className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-[var(--color-text)]">
+              {entry.description || entry.action}
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+              {new Date(entry.created_at).toLocaleString('fr-FR', {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function InlineEmpty({ message }: { message: string }) {
+  return <p className="py-6 text-center text-sm text-[var(--color-text-muted)]">{message}</p>
 }
 
 function ProgressRow({ label, value }: { label: string; value: number }) {
