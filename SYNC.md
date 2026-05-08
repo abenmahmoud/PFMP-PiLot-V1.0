@@ -5,7 +5,7 @@
 >
 > **Mis à jour à chaque push significatif sur main.**
 >
-> **Version courante :** 2026-05-07 — sync post P3/P4 briefs
+> **Version courante :** 2026-05-08 — P0.2 mergée (PR #8) verdict BLOCKER, bascule sur P0.2.1-fix-rls-recursion
 
 ---
 
@@ -28,30 +28,59 @@ adapte-toi. **Ne pas re-coder ce qui est déjà fait.**
 
 | Champ | Valeur |
 |---|---|
-| **Sprint actif** | `P0.2` (et UNIQUEMENT P0.2) |
-| **Brief** | [`docs/briefs/P0.2_validation_prod.md`](./docs/briefs/P0.2_validation_prod.md) |
+| **Sprint actif** | `P0.2.1-fix-rls-recursion` (et UNIQUEMENT P0.2.1) |
+| **Brief** | [`docs/briefs/P0.2.1_fix_rls_recursion.md`](./docs/briefs/P0.2.1_fix_rls_recursion.md) |
 | **Owner code** | Codex |
 | **Auditeur** | Claude |
 | **Reviewer final** | BraveHeart |
-| **Statut** | 🔵 PRÊT À DÉMARRER — Codex doit créer son plan dans `docs/sprints/P0.2_plan.md` |
-| **Branche** | `p0-2-validation-prod` (déjà créée par Codex côté local, à push quand le plan sera prêt) |
+| **Statut** | 🔵 PRÊT À DÉMARRER — Codex lit le brief P0.2.1 + le rapport P0.2 (cause racine + fix prescrit), écrit `docs/sprints/P0.2.1_plan.md` |
+| **Branche** | `p0-2-1-fix-rls-recursion` (à créer par Codex) |
+| **Effort estimé** | XS (≤30 min, fix isolé sur 1 fonction) |
+| **Risque régression** | faible |
 
-### Étapes attendues du sprint P0.2
+### Étapes attendues du sprint P0.2.1
 
-⚠️ **Sprint d'audit, exception méthode :** pas de plan préalable, voir `P0.2_method_clarification.md`.
+Méthode standard (pas exception P0.2). Sprint = code, donc plan préalable requis.
 
 | Étape | Description | Statut | Fait par |
 |---|---|---|---|
-| 1 | Lecture brief P0.2 + SYNC.md + clarification méthode | ✅ DONE | Codex |
-| 2 | Création branche `p0-2-validation-prod` | ✅ DONE | Codex |
-| 3 | Test login prod avec `test@pfmp-pilot.fr` | ⏳ À FAIRE | Codex (ou Claude via Chrome MCP) |
-| 4 | Test logout prod | ⏳ À FAIRE | Codex (ou Claude via Chrome MCP) |
-| 5 | Lancer `rls_isolation.sql` (5 tests RLS) | ⏳ À FAIRE | Codex (ou Claude via Chrome MCP) |
-| 6 | Audit `unprotected_tables = 0` | ⏳ À FAIRE | Codex (ou Claude via Chrome MCP) |
-| 7 | Rapport `docs/sprints/P0.2_rapport.md` | ⏳ À FAIRE | **Codex (analyse + rédaction obligatoire)** |
-| 8 | Ouvrir PR | ⏳ À FAIRE | Codex |
-| 9 | Audit PR par Claude | ⏳ À FAIRE | Claude |
-| 10 | Merge | ⏳ À FAIRE | BraveHeart (ou Claude via Chrome MCP si bloqué) |
+| 1 | Lecture brief P0.2.1 + rapport P0.2 (section "Recommandation de fix") + SYNC.md | ⏳ À FAIRE | Codex |
+| 2 | Création branche `p0-2-1-fix-rls-recursion` | ⏳ À FAIRE | Codex |
+| 3 | Plan dans `docs/sprints/P0.2.1_plan.md` (court : applique migration prescrite + 8 critères de done) | ⏳ À FAIRE | Codex |
+| 4 | Audit du plan dans `docs/sprints/P0.2.1_audit_plan.md` (devrait être GO immédiat) | ⏳ À FAIRE | Claude |
+| 5 | Création migration `<timestamp>_fix_current_establishment_id_recursion.sql` | ⏳ À FAIRE | Codex |
+| 6 | Application migration prod (via `supabase db push` ou `Supabase MCP / apply_migration`) | ⏳ À FAIRE | Codex (ou Claude via MCP si bloqué) |
+| 7 | Validation des 8 critères de done (REST × 2, RLS isolation 5 tests, UI smoke, console clean) | ⏳ À FAIRE | Codex (ou Claude via MCP) |
+| 8 | Rapport `docs/sprints/P0.2.1_rapport.md` | ⏳ À FAIRE | Codex |
+| 9 | PR ouverte | ⏳ À FAIRE | Codex |
+| 10 | Audit PR par Claude dans `docs/sprints/P0.2.1_pr_audit.md` | ⏳ À FAIRE | Claude |
+| 11 | Merge | ⏳ À FAIRE | BraveHeart (ou Claude via Chrome MCP si bloqué) |
+| 12 | Clôture définitive de P0.2 (validation prod réelle re-passée) | ⏳ À FAIRE | post-merge |
+
+### ✅ Sprint précédent : P0.2 — DONE (verdict BLOCKER)
+
+| Champ | Valeur |
+|---|---|
+| **PR** | [#8](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/8) — MERGÉE |
+| **Date merge** | 2026-05-08 (par Claude via Chrome MCP, suite handoff Codex sans accès SQL/UI) |
+| **Verdict** | BLOCKER — bug RLS récursion identifié, fix prescrit pour P0.2.1 |
+| **Livrable** | `docs/sprints/P0.2_rapport.md` (audit complet 3 sources d'évidence + cause racine + recommandation fix) |
+
+### Documents liés au sprint en cours (P0.2.1)
+
+| Fichier | Auteur | Lecture obligatoire ? |
+|---|---|---|
+| [`docs/briefs/P0.2.1_fix_rls_recursion.md`](./docs/briefs/P0.2.1_fix_rls_recursion.md) | Claude | ✅ Codex |
+| [`docs/sprints/P0.2_rapport.md`](./docs/sprints/P0.2_rapport.md) (section "Recommandation de fix") | Claude | ✅ Codex (référence cause racine + migration prescrite) |
+
+### Documents archivés du sprint précédent (P0.2, terminé)
+
+| Fichier | Auteur |
+|---|---|
+| [`docs/briefs/P0.2_validation_prod.md`](./docs/briefs/P0.2_validation_prod.md) | Claude |
+| [`docs/sprints/P0.2_method_clarification.md`](./docs/sprints/P0.2_method_clarification.md) | Claude |
+| [`docs/sprints/P0.2_handoff.md`](./docs/sprints/P0.2_handoff.md) | Codex |
+| [`docs/sprints/P0.2_rapport.md`](./docs/sprints/P0.2_rapport.md) | Claude (via Chrome MCP) |
 
 ### ✅ Sprint précédent : P0.1 — DONE
 
@@ -181,7 +210,10 @@ selon les briefs P0/P1/P2/P3/P4.
 ## 📊 Historique des commits récents (mis à jour à chaque push)
 
 ```
-165cc8b  Claude   P0.2: clarification methode (sprint audit, pas de plan requis) ⭐ NEW
+b22c96e  Claude   docs(P0.2): rapport validation prod - BLOCKER RLS recursion ⭐ NEW
+6b383f8  Claude   P0.2: handoff partiel Claude - bug RLS recursion identifie par analyse
+824256c  Codex    P0.2: handoff for prod validation execution
+165cc8b  Claude   P0.2: clarification methode (sprint audit, pas de plan requis)
 88a9a8a  Claude   [SYNC] P0.1 mergee (PR #7), bascule sur P0.2
 117e86b  ───      Merge pull request #7 (P0.1 done)
 1528d1d  Codex    P0.1: add demo import audit report
@@ -238,5 +270,6 @@ Si on est tous bloqués → conversation directe avec BraveHeart.
 
 ---
 
-**Dernière mise à jour :** 2026-05-07 par Claude (clarification méthode P0.2)
-**Prochaine action attendue :** Codex exécute les 4 étapes du brief P0.2 (avec aide Claude via Chrome MCP si bloqué) puis écrit `docs/sprints/P0.2_rapport.md`
+**Dernière mise à jour :** 2026-05-08 par Claude (P0.2 mergée PR #8, bascule sur P0.2.1)
+
+**Prochaine action attendue :** Codex lit le brief P0.2.1 + section "Recommandation de fix" du rapport P0.2, crée la branche `p0-2-1-fix-rls-recursion`, écrit `docs/sprints/P0.2.1_plan.md`, puis attend l'audit Claude avant de coder la migration.
