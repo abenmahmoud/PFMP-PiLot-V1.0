@@ -23,6 +23,7 @@ import { cn } from '@/lib/cn'
 import type { UserRole } from '@/types'
 import { ROLE_LABELS } from '@/types'
 import { getCurrentUser, profiles } from '@/data/demo'
+import { isDemoMode } from '@/lib/supabase'
 
 interface NavItem {
   to: string
@@ -126,7 +127,7 @@ export function Sidebar({ role, onNavigate }: SidebarProps) {
         )}
       </nav>
 
-      <UserSwitcher />
+      {isDemoMode() && <UserSwitcher />}
     </aside>
   )
 }
