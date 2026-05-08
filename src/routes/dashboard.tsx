@@ -46,6 +46,8 @@ import { PROFESSIONAL_FAMILY_LABELS, type ProfessionalFamily } from '@/types'
 export const Route = createFileRoute('/dashboard')({ component: DashboardPage })
 
 const TEACHER_OVERLOAD_THRESHOLD = 6
+const DASHBOARD_LOAD_TIMEOUT_MS = 12000
+const AUTH_LOAD_TIMEOUT_MS = 8000
 
 function DashboardPage() {
   if (isDemoMode()) return <DashboardDemo />
@@ -57,6 +59,20 @@ function DashboardSupabase() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [authTimedOut, setAuthTimedOut] = useState(false)
+
+  useEffect(() => {
+    if (!auth.loading) {
+      setAuthTimedOut(false)
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      setAuthTimedOut(true)
+    }, AUTH_LOAD_TIMEOUT_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [auth.loading])
 
   useEffect(() => {
     if (auth.loading) return
@@ -69,7 +85,7 @@ function DashboardSupabase() {
     setLoading(true)
     setError(null)
 
-    fetchDashboardData()
+    withTimeout(fetchDashboardData(), DASHBOARD_LOAD_TIMEOUT_MS, 'Lecture Supabase trop longue')
       .then((nextData) => {
         if (mounted) setData(nextData)
       })
@@ -85,7 +101,23 @@ function DashboardSupabase() {
     }
   }, [auth.loading, auth.profile])
 
-  if (auth.loading || loading) return <DashboardSkeleton />
+  if (auth.loading && !authTimedOut) return <DashboardSkeleton />
+
+  if (auth.loading && authTimedOut) {
+    return (
+      <BareState
+        title="Session en attente"
+        description="La session Supabase met trop longtemps à se résoudre. Rechargez la page ou reconnectez-vous."
+        action={
+          <Link to="/login">
+            <Button>Retour à la connexion</Button>
+          </Link>
+        }
+      />
+    )
+  }
+
+  if (loading) return <DashboardSkeleton />
 
   if (!auth.profile) {
     return (
@@ -709,6 +741,25 @@ function DashboardSkeleton() {
   return (
     <BareState title="Chargement du dashboard" description="Lecture des données Supabase..." />
   )
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  let timeoutId: number | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(message))
+    }, timeoutMs)
+  })
+
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId)
+  }
 }
 
 function BareState({
