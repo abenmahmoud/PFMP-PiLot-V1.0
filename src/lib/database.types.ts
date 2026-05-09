@@ -219,6 +219,14 @@ export interface VisitRow {
   updated_at: string
 }
 
+export interface VisitReportRow {
+  id: string
+  visit_id: string
+  body: string
+  generated_by_ai: boolean
+  created_at: string
+}
+
 export interface DocumentRow {
   id: string
   establishment_id: string
