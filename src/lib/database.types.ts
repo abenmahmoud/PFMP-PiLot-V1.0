@@ -261,6 +261,16 @@ export interface AuditLogRow {
   created_at: string
 }
 
+export interface EstablishmentSettingsRow {
+  establishment_id: string
+  school_year: string | null
+  teacher_load_threshold: number | null
+  ai_enabled: boolean | null
+  rgpd_notice: string | null
+  logo_url: string | null
+  updated_at: string
+}
+
 
 // ----------------------------------------------------------------------------
 // Database global type — VOLONTAIREMENT non exporté pour l'instant.
