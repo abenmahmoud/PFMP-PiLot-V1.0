@@ -219,6 +219,14 @@ export interface VisitRow {
   updated_at: string
 }
 
+export interface VisitReportRow {
+  id: string
+  visit_id: string
+  body: string
+  generated_by_ai: boolean
+  created_at: string
+}
+
 export interface DocumentRow {
   id: string
   establishment_id: string
@@ -259,6 +267,16 @@ export interface AuditLogRow {
   ip_address: string | null
   user_agent: string | null
   created_at: string
+}
+
+export interface EstablishmentSettingsRow {
+  establishment_id: string
+  school_year: string | null
+  teacher_load_threshold: number | null
+  ai_enabled: boolean | null
+  rgpd_notice: string | null
+  logo_url: string | null
+  updated_at: string
 }
 
 
