@@ -1,14 +1,21 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
-import { Plus, Building2, Mail, Phone, Users, Star, AlertTriangle, Activity } from 'lucide-react'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { useEffect, useMemo, useState } from 'react'
+import { Activity, AlertTriangle, Building2, Mail, Phone, Plus, Star, Users } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
-import { Select } from '@/components/ui/Field'
-import { StatCard } from '@/components/StatCard'
-import { SearchFilterBar } from '@/components/SearchFilterBar'
 import { EmptyState } from '@/components/EmptyState'
+import { SearchFilterBar } from '@/components/SearchFilterBar'
+import { StatCard } from '@/components/StatCard'
+import { Badge, type BadgeTone } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Select } from '@/components/ui/Field'
+import { useAuth } from '@/lib/AuthProvider'
+import { isDemoMode } from '@/lib/supabase'
+import {
+  buildCompanyNetworkSummary,
+  fetchCompanies,
+  type CompanyListItem,
+} from '@/services/companies'
 import { companies, tutors, buildCompanyIntelligence, ESTABLISHMENT_ID } from '@/data/demo'
 import {
   COMPANY_RELIABILITY_LABELS,
@@ -21,9 +28,13 @@ import {
   type ProfessionalFamily,
   type TutorResponsiveness,
 } from '@/types'
-import type { BadgeTone } from '@/components/ui/Badge'
+import type { CompanyRow, TutorRow } from '@/lib/database.types'
 
 export const Route = createFileRoute('/companies')({ component: CompaniesPage })
+
+const PROFESSIONAL_FAMILIES = Object.keys(PROFESSIONAL_FAMILY_LABELS) as ProfessionalFamily[]
+const COMPANY_STATUSES = Object.keys(COMPANY_STATUS_LABELS) as CompanyStatus[]
+const COMPANY_RELIABILITIES = Object.keys(COMPANY_RELIABILITY_LABELS) as CompanyReliability[]
 
 const RELIABILITY_TONE: Record<CompanyReliability, BadgeTone> = {
   high: 'success',
@@ -48,6 +59,118 @@ const RESPONSIVENESS_TONE: Record<TutorResponsiveness, BadgeTone> = {
 }
 
 function CompaniesPage() {
+  if (isDemoMode()) return <CompaniesDemo />
+  return <CompaniesSupabase />
+}
+
+function CompaniesSupabase() {
+  const auth = useAuth()
+  const [query, setQuery] = useState('')
+  const [familyFilter, setFamilyFilter] = useState<'all' | ProfessionalFamily>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | CompanyStatus>('all')
+  const [reliabilityFilter, setReliabilityFilter] = useState<'all' | CompanyReliability>('all')
+  const [rows, setRows] = useState<CompanyListItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (auth.loading) return
+    if (!auth.profile) {
+      setRows([])
+      setLoading(false)
+      return
+    }
+
+    let mounted = true
+    setLoading(true)
+    setError(null)
+
+    fetchCompanies({
+      search: query,
+      professionalFamily: familyFilter === 'all' ? undefined : familyFilter,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      reliability: reliabilityFilter === 'all' ? undefined : reliabilityFilter,
+    })
+      .then((nextRows) => {
+        if (mounted) setRows(nextRows)
+      })
+      .catch((e) => {
+        if (mounted) setError(e instanceof Error ? e.message : String(e))
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [auth.loading, auth.profile, familyFilter, query, reliabilityFilter, statusFilter])
+
+  const intelligence = useMemo(() => buildCompanyNetworkSummary(rows), [rows])
+
+  if (auth.loading || loading) return <CompaniesSkeleton />
+
+  if (!auth.profile) {
+    return (
+      <BareCompaniesState
+        title="Session requise"
+        description="Connectez-vous avec un compte Supabase pour afficher le reseau entreprises."
+      />
+    )
+  }
+
+  if (error) {
+    return (
+      <AppLayout title="Entreprises et tuteurs" subtitle="Donnees Supabase">
+        <EmptyState
+          icon={<AlertTriangle className="w-5 h-5" />}
+          title="Impossible de charger les entreprises"
+          description={error}
+        />
+      </AppLayout>
+    )
+  }
+
+  return (
+    <AppLayout
+      title="Entreprises et tuteurs"
+      subtitle={`${intelligence.totalCompanies} entreprises - ${intelligence.tutorsCount} tuteurs - donnees Supabase`}
+      actions={
+        <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} disabled>
+          Ajouter
+        </Button>
+      }
+    >
+      <CompaniesStats summary={intelligence} />
+      <CompaniesFilters
+        query={query}
+        setQuery={setQuery}
+        familyFilter={familyFilter}
+        setFamilyFilter={setFamilyFilter}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        reliabilityFilter={reliabilityFilter}
+        setReliabilityFilter={setReliabilityFilter}
+      />
+
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={<Building2 className="w-5 h-5" />}
+          title="Aucune entreprise"
+          description="Aucune entreprise ne correspond aux filtres actuels dans ce tenant."
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {rows.map((item) => (
+            <CompanySupabaseCard key={item.company.id} item={item} />
+          ))}
+        </div>
+      )}
+    </AppLayout>
+  )
+}
+
+function CompaniesDemo() {
   const [query, setQuery] = useState('')
   const [familyFilter, setFamilyFilter] = useState<'all' | ProfessionalFamily>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | CompanyStatus>('all')
@@ -58,42 +181,31 @@ function CompaniesPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return companies
-      .filter((c) => c.establishmentId === ESTABLISHMENT_ID)
-      .filter((c) => {
-        if (familyFilter !== 'all' && c.professionalFamily !== familyFilter) return false
-        if (statusFilter !== 'all' && c.status !== statusFilter) return false
-        if (reliabilityFilter !== 'all' && c.reliability !== reliabilityFilter) return false
+      .filter((company) => company.establishmentId === ESTABLISHMENT_ID)
+      .filter((company) => {
+        if (familyFilter !== 'all' && company.professionalFamily !== familyFilter) return false
+        if (statusFilter !== 'all' && company.status !== statusFilter) return false
+        if (reliabilityFilter !== 'all' && company.reliability !== reliabilityFilter) return false
         if (!q) return true
-        const hay = [
-          c.name,
-          c.city,
-          c.sector,
-          c.zipCode,
-          PROFESSIONAL_FAMILY_LABELS[c.professionalFamily],
-          ...tutors
-            .filter((t) => t.companyId === c.id)
-            .map((t) => `${t.firstName} ${t.lastName} ${t.function}`),
+        const companyTutors = tutors.filter((tutor) => tutor.companyId === company.id)
+        return [
+          company.name,
+          company.city,
+          company.sector,
+          company.zipCode,
+          PROFESSIONAL_FAMILY_LABELS[company.professionalFamily],
+          ...companyTutors.map((tutor) => `${tutor.firstName} ${tutor.lastName} ${tutor.function}`),
         ]
           .join(' ')
           .toLowerCase()
-        return hay.includes(q)
+          .includes(q)
       })
-  }, [query, familyFilter, statusFilter, reliabilityFilter])
-
-  const sortedFamilies = Object.entries(PROFESSIONAL_FAMILY_LABELS) as Array<
-    [ProfessionalFamily, string]
-  >
-  const sortedStatuses = Object.entries(COMPANY_STATUS_LABELS) as Array<
-    [CompanyStatus, string]
-  >
-  const sortedReliability = Object.entries(COMPANY_RELIABILITY_LABELS) as Array<
-    [CompanyReliability, string]
-  >
+  }, [familyFilter, query, reliabilityFilter, statusFilter])
 
   return (
     <AppLayout
       title="Entreprises et tuteurs"
-      subtitle={`${intelligence.totalCompanies} entreprises · ${intelligence.tutorsCount} tuteurs · base à ${intelligence.averageCompletionRate}% complétée`}
+      subtitle={`${intelligence.totalCompanies} entreprises - ${intelligence.tutorsCount} tuteurs - mode demo`}
       actions={
         <Button size="sm" iconLeft={<Plus className="w-4 h-4" />}>
           Ajouter
@@ -114,91 +226,200 @@ function CompaniesPage() {
           delta={{ value: 'historique fiable', tone: 'up' }}
         />
         <StatCard
-          label="À relancer"
+          label="A relancer"
           value={intelligence.toRecontact + intelligence.toWatch}
           icon={<AlertTriangle className="w-4 h-4" />}
           delta={{
-            value: `${intelligence.toRecontact} relance · ${intelligence.toWatch} surveillance`,
+            value: `${intelligence.toRecontact} relance - ${intelligence.toWatch} surveillance`,
             tone: 'down',
           }}
         />
         <StatCard
-          label="Tuteurs renseignés"
+          label="Tuteurs renseignes"
           value={`${intelligence.tutorsWithEmail}/${intelligence.tutorsCount}`}
           icon={<Users className="w-4 h-4" />}
           hint="avec adresse email"
         />
       </section>
 
-      <SearchFilterBar
+      <CompaniesFilters
         query={query}
-        onQueryChange={setQuery}
-        placeholder="Rechercher par nom, ville, secteur ou tuteur…"
-        filters={
-          <>
-            <Select
-              value={familyFilter}
-              onChange={(e) => setFamilyFilter(e.target.value as 'all' | ProfessionalFamily)}
-              className="w-full sm:w-auto"
-            >
-              <option value="all">Toutes familles</option>
-              {sortedFamilies.map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'all' | CompanyStatus)}
-              className="w-full sm:w-auto"
-            >
-              <option value="all">Tout statut</option>
-              {sortedStatuses.map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-            <Select
-              value={reliabilityFilter}
-              onChange={(e) => setReliabilityFilter(e.target.value as 'all' | CompanyReliability)}
-              className="w-full sm:w-auto"
-            >
-              <option value="all">Toute fiabilité</option>
-              {sortedReliability.map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-          </>
-        }
+        setQuery={setQuery}
+        familyFilter={familyFilter}
+        setFamilyFilter={setFamilyFilter}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        reliabilityFilter={reliabilityFilter}
+        setReliabilityFilter={setReliabilityFilter}
       />
 
       {filtered.length === 0 ? (
         <EmptyState
           title="Aucune entreprise ne correspond"
-          description="Modifiez vos filtres ou élargissez la recherche."
+          description="Modifiez vos filtres ou elargissez la recherche."
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filtered.map((c) => (
-            <CompanyCard key={c.id} company={c} />
+          {filtered.map((company) => (
+            <CompanyDemoCard key={company.id} company={company} />
           ))}
         </div>
       )}
-
-      <p className="mt-6 text-xs text-[var(--color-text-muted)]">
-        TODO — accès tuteur entreprise par lien sécurisé (magic link), import CSV/Excel et
-        synchronisation INSEE/SIRENE seront branchés ultérieurement.
-      </p>
     </AppLayout>
   )
 }
 
-function CompanyCard({ company }: { company: Company }) {
-  const linkedTutors = tutors.filter((t) => t.companyId === company.id)
+function CompaniesStats({ summary }: { summary: ReturnType<typeof buildCompanyNetworkSummary> }) {
+  return (
+    <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatCard
+        label="Entreprises actives"
+        value={summary.activeCompanies}
+        icon={<Activity className="w-4 h-4" />}
+        delta={{ value: `${summary.totalCompanies} au total`, tone: 'neutral' }}
+      />
+      <StatCard
+        label="Partenaires forts"
+        value={summary.strongPartners}
+        icon={<Star className="w-4 h-4" />}
+        delta={{ value: 'reseau qualifie', tone: 'up' }}
+      />
+      <StatCard
+        label="A relancer"
+        value={summary.toRecontact + summary.toWatch}
+        icon={<AlertTriangle className="w-4 h-4" />}
+        delta={{
+          value: `${summary.toRecontact} relance - ${summary.toWatch} surveillance`,
+          tone: summary.toRecontact + summary.toWatch > 0 ? 'down' : 'neutral',
+        }}
+      />
+      <StatCard
+        label="Tuteurs renseignes"
+        value={`${summary.tutorsWithEmail}/${summary.tutorsCount}`}
+        icon={<Users className="w-4 h-4" />}
+        hint="avec adresse email"
+      />
+    </section>
+  )
+}
+
+interface CompaniesFiltersProps {
+  query: string
+  setQuery: (value: string) => void
+  familyFilter: 'all' | ProfessionalFamily
+  setFamilyFilter: (value: 'all' | ProfessionalFamily) => void
+  statusFilter: 'all' | CompanyStatus
+  setStatusFilter: (value: 'all' | CompanyStatus) => void
+  reliabilityFilter: 'all' | CompanyReliability
+  setReliabilityFilter: (value: 'all' | CompanyReliability) => void
+}
+
+function CompaniesFilters({
+  query,
+  setQuery,
+  familyFilter,
+  setFamilyFilter,
+  statusFilter,
+  setStatusFilter,
+  reliabilityFilter,
+  setReliabilityFilter,
+}: CompaniesFiltersProps) {
+  return (
+    <SearchFilterBar
+      query={query}
+      onQueryChange={setQuery}
+      placeholder="Rechercher par nom, ville, secteur ou tuteur..."
+      filters={
+        <>
+          <Select
+            value={familyFilter}
+            onChange={(e) => setFamilyFilter(e.target.value as 'all' | ProfessionalFamily)}
+            className="w-full sm:w-auto"
+          >
+            <option value="all">Toutes familles</option>
+            {PROFESSIONAL_FAMILIES.map((family) => (
+              <option key={family} value={family}>
+                {PROFESSIONAL_FAMILY_LABELS[family]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as 'all' | CompanyStatus)}
+            className="w-full sm:w-auto"
+          >
+            <option value="all">Tout statut</option>
+            {COMPANY_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {COMPANY_STATUS_LABELS[status]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            value={reliabilityFilter}
+            onChange={(e) => setReliabilityFilter(e.target.value as 'all' | CompanyReliability)}
+            className="w-full sm:w-auto"
+          >
+            <option value="all">Toute fiabilite</option>
+            {COMPANY_RELIABILITIES.map((reliability) => (
+              <option key={reliability} value={reliability}>
+                {COMPANY_RELIABILITY_LABELS[reliability]}
+              </option>
+            ))}
+          </Select>
+        </>
+      }
+    />
+  )
+}
+
+function CompanySupabaseCard({ item }: { item: CompanyListItem }) {
+  const company = item.company
+  const status = asCompanyStatus(company.status)
+  const reliability = asCompanyReliability(company.reliability)
+  const family = asProfessionalFamily(company.professional_family)
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="min-w-0">
+          <CardTitle icon={<Building2 className="w-4 h-4" />}>
+            <Link
+              to="/companies/$id"
+              params={{ id: company.id }}
+              className="hover:text-[var(--color-brand-700)]"
+            >
+              {company.name}
+            </Link>
+          </CardTitle>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">
+            {formatAddress(company)}
+          </p>
+        </div>
+        <CompanyBadges status={status} reliability={reliability} />
+      </CardHeader>
+      <CardBody className="text-sm space-y-3">
+        <div className="flex flex-wrap gap-2 text-xs">
+          {family && <Badge tone="brand">{PROFESSIONAL_FAMILY_LABELS[family]}</Badge>}
+          {company.sector && <Badge tone="neutral">{company.sector}</Badge>}
+          <Badge tone="neutral">{company.students_hosted} eleves accueillis</Badge>
+        </div>
+
+        <ContactLine company={company} />
+        <TutorsPreview tutors={item.tutors} />
+
+        {company.internal_notes && (
+          <p className="text-xs text-[var(--color-warning-fg)] bg-[var(--color-warning-bg)] border border-amber-200 rounded-md px-2 py-1.5">
+            {company.internal_notes}
+          </p>
+        )}
+      </CardBody>
+    </Card>
+  )
+}
+
+function CompanyDemoCard({ company }: { company: Company }) {
+  const linkedTutors = tutors.filter((tutor) => tutor.companyId === company.id)
   return (
     <Card>
       <CardHeader>
@@ -208,39 +429,14 @@ function CompanyCard({ company }: { company: Company }) {
             {company.address}, {company.zipCode} {company.city}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 justify-end">
-          <Badge tone={STATUS_TONE[company.status]}>
-            {COMPANY_STATUS_LABELS[company.status]}
-          </Badge>
-          <Badge tone={RELIABILITY_TONE[company.reliability]} dot>
-            {COMPANY_RELIABILITY_LABELS[company.reliability]}
-          </Badge>
-        </div>
+        <CompanyBadges status={company.status} reliability={company.reliability} />
       </CardHeader>
       <CardBody className="text-sm space-y-3">
         <div className="flex flex-wrap gap-2 text-xs">
           <Badge tone="brand">{PROFESSIONAL_FAMILY_LABELS[company.professionalFamily]}</Badge>
           <Badge tone="neutral">{company.sector}</Badge>
-          <Badge tone="neutral">{company.studentsHosted} élèves accueillis</Badge>
+          <Badge tone="neutral">{company.studentsHosted} eleves accueillis</Badge>
         </div>
-
-        {company.compatibleFormations.length > 0 && (
-          <div>
-            <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-text-subtle)] mb-1">
-              Formations compatibles
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {company.compatibleFormations.map((f) => (
-                <span
-                  key={f}
-                  className="text-xs px-2 py-0.5 rounded-md bg-[var(--color-muted)] text-[var(--color-text)]"
-                >
-                  {f}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="flex flex-wrap gap-3 text-xs text-[var(--color-text-muted)]">
           {company.phone && (
@@ -254,71 +450,164 @@ function CompanyCard({ company }: { company: Company }) {
             </span>
           )}
           {company.siret && <span>SIRET {company.siret}</span>}
-          {company.lastHostedAt && (
-            <span>
-              Dernier accueil :{' '}
-              {new Date(company.lastHostedAt).toLocaleDateString('fr-FR', {
-                month: 'short',
-                year: 'numeric',
-              })}
-            </span>
-          )}
         </div>
-
-        {company.internalNotes && (
-          <p className="text-xs text-[var(--color-warning-fg)] bg-[var(--color-warning-bg)] border border-amber-200 rounded-md px-2 py-1.5">
-            {company.internalNotes}
-          </p>
-        )}
 
         <div className="border-t border-[var(--color-border)] pt-2">
           <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-text-subtle)] mb-1">
             Tuteurs ({linkedTutors.length})
           </p>
-          {linkedTutors.length === 0 ? (
-            <p className="text-xs text-[var(--color-text-muted)]">
-              Aucun tuteur enregistré.
-            </p>
-          ) : (
-            <ul className="space-y-1.5">
-              {linkedTutors.map((t) => (
-                <li
-                  key={t.id}
-                  className="text-xs flex items-start justify-between gap-2"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">
-                      {t.firstName} {t.lastName}
-                    </p>
-                    <p className="text-[var(--color-text-muted)] truncate">
-                      {t.function}
-                      {t.email ? ` · ${t.email}` : ''}
-                    </p>
-                  </div>
-                  {t.responsiveness && (
-                    <Badge tone={RESPONSIVENESS_TONE[t.responsiveness]}>
-                      {TUTOR_RESPONSIVENESS_LABELS[t.responsiveness]}
-                    </Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="space-y-1.5">
+            {linkedTutors.slice(0, 3).map((tutor) => (
+              <li key={tutor.id} className="text-xs flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">
+                    {tutor.firstName} {tutor.lastName}
+                  </p>
+                  <p className="text-[var(--color-text-muted)] truncate">{tutor.function}</p>
+                </div>
+                {tutor.responsiveness && (
+                  <Badge tone={RESPONSIVENESS_TONE[tutor.responsiveness]}>
+                    {TUTOR_RESPONSIVENESS_LABELS[tutor.responsiveness]}
+                  </Badge>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
-
-        {company.history && company.history.length > 0 && (
-          <div className="border-t border-[var(--color-border)] pt-2">
-            <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-text-subtle)] mb-1">
-              Historique
-            </p>
-            <ul className="space-y-1 list-disc list-inside text-xs text-[var(--color-text-muted)]">
-              {company.history.map((line, i) => (
-                <li key={i}>{line}</li>
-              ))}
-            </ul>
-          </div>
-        )}
       </CardBody>
     </Card>
   )
+}
+
+function CompanyBadges({
+  status,
+  reliability,
+}: {
+  status: CompanyStatus
+  reliability: CompanyReliability
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 justify-end">
+      <Badge tone={STATUS_TONE[status]}>{COMPANY_STATUS_LABELS[status]}</Badge>
+      <Badge tone={RELIABILITY_TONE[reliability]} dot>
+        {COMPANY_RELIABILITY_LABELS[reliability]}
+      </Badge>
+    </div>
+  )
+}
+
+function ContactLine({ company }: { company: CompanyRow }) {
+  return (
+    <div className="flex flex-wrap gap-3 text-xs text-[var(--color-text-muted)]">
+      {company.phone && (
+        <span className="inline-flex items-center gap-1">
+          <Phone className="w-3 h-3" /> {company.phone}
+        </span>
+      )}
+      {company.email && (
+        <span className="inline-flex items-center gap-1 truncate">
+          <Mail className="w-3 h-3" /> {company.email}
+        </span>
+      )}
+      {company.siret && <span>SIRET {company.siret}</span>}
+      {company.last_hosted_at && <span>Dernier accueil : {formatDate(company.last_hosted_at)}</span>}
+    </div>
+  )
+}
+
+function TutorsPreview({ tutors: linkedTutors }: { tutors: TutorRow[] }) {
+  return (
+    <div className="border-t border-[var(--color-border)] pt-2">
+      <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-text-subtle)] mb-1">
+        Tuteurs ({linkedTutors.length})
+      </p>
+      {linkedTutors.length === 0 ? (
+        <p className="text-xs text-[var(--color-text-muted)]">Aucun tuteur enregistre.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {linkedTutors.slice(0, 3).map((tutor) => {
+            const responsiveness = asTutorResponsiveness(tutor.responsiveness)
+            return (
+              <li key={tutor.id} className="text-xs flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">
+                    {tutor.first_name} {tutor.last_name}
+                  </p>
+                  <p className="text-[var(--color-text-muted)] truncate">
+                    {tutor.function ?? 'Fonction non renseignee'}
+                    {tutor.email ? ` - ${tutor.email}` : ''}
+                  </p>
+                </div>
+                {responsiveness && (
+                  <Badge tone={RESPONSIVENESS_TONE[responsiveness]}>
+                    {TUTOR_RESPONSIVENESS_LABELS[responsiveness]}
+                  </Badge>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function CompaniesSkeleton() {
+  return (
+    <AppLayout title="Entreprises et tuteurs" subtitle="Lecture des donnees Supabase...">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="h-28 rounded-lg border border-[var(--color-border)] bg-white animate-pulse" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="h-56 rounded-lg border border-[var(--color-border)] bg-white animate-pulse" />
+        ))}
+      </div>
+    </AppLayout>
+  )
+}
+
+function BareCompaniesState({ title, description }: { title: string; description: string }) {
+  return (
+    <main className="min-h-screen bg-[var(--color-bg)] p-6 flex items-center justify-center">
+      <div className="max-w-lg w-full">
+        <EmptyState icon={<Building2 className="w-5 h-5" />} title={title} description={description} />
+      </div>
+    </main>
+  )
+}
+
+function formatAddress(company: CompanyRow): string {
+  const parts = [company.address, company.zip_code, company.city].filter(Boolean)
+  return parts.length > 0 ? parts.join(' ') : 'Adresse non renseignee'
+}
+
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString('fr-FR', {
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function asProfessionalFamily(value: string | null): ProfessionalFamily | null {
+  return PROFESSIONAL_FAMILIES.includes(value as ProfessionalFamily)
+    ? (value as ProfessionalFamily)
+    : null
+}
+
+function asCompanyStatus(value: string): CompanyStatus {
+  return COMPANY_STATUSES.includes(value as CompanyStatus) ? (value as CompanyStatus) : 'active'
+}
+
+function asCompanyReliability(value: string): CompanyReliability {
+  return COMPANY_RELIABILITIES.includes(value as CompanyReliability)
+    ? (value as CompanyReliability)
+    : 'unknown'
+}
+
+function asTutorResponsiveness(value: string | null): TutorResponsiveness | null {
+  const values: TutorResponsiveness[] = ['fast', 'medium', 'slow', 'unknown']
+  return values.includes(value as TutorResponsiveness) ? (value as TutorResponsiveness) : null
 }
