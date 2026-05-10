@@ -113,9 +113,11 @@ function EstablishmentsSupabase() {
     title: 'Établissements',
     subtitle: 'Vue Superadmin · gestion multi-tenant · données Supabase',
     actions: (
-      <Button iconLeft={<Plus className="w-4 h-4" />} size="sm">
-        Nouvel établissement
-      </Button>
+      <Link to="/superadmin/establishments/new">
+        <Button iconLeft={<Plus className="w-4 h-4" />} size="sm">
+          Nouvel établissement
+        </Button>
+      </Link>
     ),
   }
 
@@ -200,7 +202,9 @@ function EstablishmentsSupabase() {
           title="Aucun établissement enregistré"
           description="Créez votre premier établissement pour démarrer le pilotage des PFMP."
           action={
-            <Button iconLeft={<Plus className="w-4 h-4" />}>Créer un établissement</Button>
+            <Link to="/superadmin/establishments/new">
+              <Button iconLeft={<Plus className="w-4 h-4" />}>Créer un établissement</Button>
+            </Link>
           }
         />
       </AppLayout>

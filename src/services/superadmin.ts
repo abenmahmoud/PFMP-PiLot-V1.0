@@ -17,6 +17,7 @@ import type {
   CompanyRow,
   DocumentRow,
   EstablishmentRow,
+  EstablishmentSettingsRow,
   StudentRow,
   TutorRow,
   VisitRow,
@@ -67,6 +68,21 @@ export interface SuperadminOverview {
 }
 
 export interface EstablishmentListItem extends EstablishmentWithMetrics {}
+
+export interface CreateEstablishmentInput {
+  name: string
+  city: string | null
+  uai: string | null
+  slug: string
+  primaryColor: string | null
+  schoolYear: string | null
+  teacherLoadThreshold: number
+}
+
+export interface CreateEstablishmentResult {
+  establishment: EstablishmentRow
+  settings: EstablishmentSettingsRow | null
+}
 
 // --------------------------------------------------------------------------
 // Constantes (alignées avec la roadmap)
@@ -286,6 +302,71 @@ export async function fetchEstablishmentsList(search?: string): Promise<Establis
       (e.uai ?? '').toLowerCase().includes(normalized)
     )
   })
+}
+
+/**
+ * Cree un tenant et ses settings de base.
+ *
+ * Scope P1.0 minimal : pas encore d'invitation DDFPT/admin ni magic link.
+ * La RLS impose que seul un superadmin puisse inserer ces lignes.
+ */
+export async function createEstablishment(
+  input: CreateEstablishmentInput,
+): Promise<CreateEstablishmentResult> {
+  const sb = getSupabase()
+
+  const { data: establishment, error: establishmentError } = await sb
+    .from('establishments')
+    .insert({
+      name: input.name,
+      city: input.city,
+      uai: input.uai,
+      slug: input.slug,
+      primary_color: input.primaryColor,
+      status: 'trial',
+      active: true,
+    })
+    .select('*')
+    .single()
+
+  if (establishmentError) {
+    throw new Error(`createEstablishment establishment: ${establishmentError.message}`)
+  }
+
+  const createdEstablishment = establishment as EstablishmentRow
+
+  const { data: settings, error: settingsError } = await sb
+    .from('establishment_settings')
+    .insert({
+      establishment_id: createdEstablishment.id,
+      school_year: input.schoolYear,
+      teacher_load_threshold: input.teacherLoadThreshold,
+      ai_enabled: false,
+      rgpd_notice: null,
+      logo_url: null,
+    })
+    .select('*')
+    .maybeSingle()
+
+  if (settingsError) {
+    throw new Error(`createEstablishment settings: ${settingsError.message}`)
+  }
+
+  await sb.from('audit_logs').insert({
+    establishment_id: createdEstablishment.id,
+    action: 'establishment.created',
+    description: `Etablissement cree : ${createdEstablishment.name}`,
+    metadata: {
+      slug: createdEstablishment.slug,
+      status: createdEstablishment.status,
+      source: 'superadmin.establishments.new',
+    },
+  })
+
+  return {
+    establishment: createdEstablishment,
+    settings: (settings as EstablishmentSettingsRow | null) ?? null,
+  }
 }
 
 // --------------------------------------------------------------------------
