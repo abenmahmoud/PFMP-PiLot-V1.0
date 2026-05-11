@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type {
   ClassRow,
   DocumentRow,
@@ -24,10 +25,15 @@ export interface PfmpPeriodListItem {
 
 export async function fetchPfmpPeriods(): Promise<PfmpPeriodListItem[]> {
   const sb = getSupabase()
-  const { data, error } = await sb
+  const scope = await getActiveEstablishmentScope()
+  let query = sb
     .from('pfmp_periods')
     .select('*')
     .order('start_date', { ascending: false })
+
+  if (scope) query = query.eq('establishment_id', scope)
+
+  const { data, error } = await query
 
   if (error) throw new Error(`fetchPfmpPeriods periods: ${error.message}`)
 

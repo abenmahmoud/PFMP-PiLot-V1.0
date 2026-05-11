@@ -24,6 +24,7 @@ import type { UserRole } from '@/types'
 import { ROLE_LABELS } from '@/types'
 import { getCurrentUser, profiles } from '@/data/demo'
 import { isDemoMode } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 
 interface NavItem {
   to: string
@@ -87,7 +88,12 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
 }
 
 export function Sidebar({ role, onNavigate }: SidebarProps) {
-  const items = NAV.filter((n) => n.roles.includes(role))
+  const auth = useAuth()
+  const superadminTenantScope =
+    !isDemoMode() && role === 'superadmin' && Boolean(auth.activeEstablishmentId)
+  const items = NAV.filter(
+    (n) => n.roles.includes(role) || (superadminTenantScope && n.section === 'main'),
+  )
   const main = items.filter((i) => i.section === 'main')
   const sup = items.filter((i) => i.section === 'super')
 

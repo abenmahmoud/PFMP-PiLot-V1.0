@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type { AuditLogRow, ProfileRow } from '@/lib/database.types'
 
 export interface ActivityItem {
@@ -8,11 +9,16 @@ export interface ActivityItem {
 
 export async function fetchActivity(limit = 100): Promise<ActivityItem[]> {
   const sb = getSupabase()
-  const { data, error } = await sb
+  const scope = await getActiveEstablishmentScope()
+  let query = sb
     .from('audit_logs')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit)
+
+  if (scope) query = query.eq('establishment_id', scope)
+
+  const { data, error } = await query
 
   if (error) throw new Error(`fetchActivity audit_logs: ${error.message}`)
 

@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type {
   AlertRow,
   ClassRow,
@@ -41,6 +42,7 @@ export interface StudentDetail {
 
 export async function fetchStudents(filters: StudentFilters = {}): Promise<StudentListItem[]> {
   const sb = getSupabase()
+  const scope = await getActiveEstablishmentScope()
   let query = sb
     .from('students')
     .select('*')
@@ -48,6 +50,7 @@ export async function fetchStudents(filters: StudentFilters = {}): Promise<Stude
     .order('last_name')
     .order('first_name')
 
+  if (scope) query = query.eq('establishment_id', scope)
   if (filters.classId) query = query.eq('class_id', filters.classId)
 
   const { data, error } = await query

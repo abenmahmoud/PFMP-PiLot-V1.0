@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type {
   CompanyRow,
   DocumentRow,
@@ -28,12 +29,14 @@ export interface DocumentSummary {
 
 export async function fetchDocuments(filters: DocumentFilters = {}): Promise<DocumentListItem[]> {
   const sb = getSupabase()
+  const scope = await getActiveEstablishmentScope()
   let query = sb
     .from('documents')
     .select('*')
     .is('archived_at', null)
     .order('created_at', { ascending: false })
 
+  if (scope) query = query.eq('establishment_id', scope)
   if (filters.type) query = query.eq('type', filters.type)
 
   const { data, error } = await query

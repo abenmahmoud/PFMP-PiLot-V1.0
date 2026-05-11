@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type {
   ClassRow,
   CompanyRow,
@@ -35,6 +36,7 @@ export interface AssignmentOptions {
 
 export async function fetchAssignments(filters: AssignmentFilters = {}): Promise<AssignmentListItem[]> {
   const sb = getSupabase()
+  const scope = await getActiveEstablishmentScope()
   let studentQuery = sb
     .from('students')
     .select('*')
@@ -42,6 +44,7 @@ export async function fetchAssignments(filters: AssignmentFilters = {}): Promise
     .order('last_name')
     .order('first_name')
 
+  if (scope) studentQuery = studentQuery.eq('establishment_id', scope)
   if (filters.classId) studentQuery = studentQuery.eq('class_id', filters.classId)
 
   const { data, error } = await studentQuery

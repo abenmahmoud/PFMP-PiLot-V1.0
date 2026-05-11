@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type {
   AlertRow,
   AuditLogRow,
@@ -58,11 +59,12 @@ export interface DashboardData {
 
 export async function fetchDashboardData(): Promise<DashboardData> {
   const sb = getSupabase()
-  const currentPeriod = await fetchCurrentPeriod()
+  const scope = await getActiveEstablishmentScope()
+  const currentPeriod = await fetchCurrentPeriod(scope)
   const periodId = currentPeriod?.id
 
   if (!periodId) {
-    const [alerts, activity] = await Promise.all([fetchAlerts(), fetchActivityLog()])
+    const [alerts, activity] = await Promise.all([fetchAlerts(6, scope), fetchActivityLog(6, scope)])
     return {
       currentPeriod,
       kpis: emptyKpis(0),
@@ -89,13 +91,19 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       .eq('period_id', periodId)
       .eq('status', 'validated'),
     sb.from('documents').select('type, status').eq('period_id', periodId),
-    sb.from('teachers').select('id, first_name, last_name').order('last_name'),
-    sb
+    applyEstablishmentScope(
+      sb.from('teachers').select('id, first_name, last_name').order('last_name'),
+      scope,
+    ),
+    applyEstablishmentScope(
+      sb
       .from('companies')
       .select('id, name, city, sector, professional_family, status, students_hosted')
       .order('name'),
-    fetchAlerts(50),
-    fetchActivityLog(),
+      scope,
+    ),
+    fetchAlerts(50, scope),
+    fetchActivityLog(6, scope),
   ])
 
   if (placementsResult.error) {
@@ -135,14 +143,18 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   }
 }
 
-export async function fetchCurrentPeriod(): Promise<PfmpPeriodRow | null> {
+export async function fetchCurrentPeriod(scope?: string | null): Promise<PfmpPeriodRow | null> {
   const sb = getSupabase()
-  const { data, error } = await sb
+  const query = applyEstablishmentScope(
+    sb
     .from('pfmp_periods')
     .select('*')
     .eq('status', 'in_progress')
     .order('start_date', { ascending: false })
-    .limit(1)
+    .limit(1),
+    scope,
+  )
+  const { data, error } = await query
     .maybeSingle()
 
   if (error) throw new Error(`fetchCurrentPeriod: ${error.message}`)
@@ -299,26 +311,34 @@ export async function fetchCompanyNetwork(periodId?: string): Promise<DashboardC
   }
 }
 
-export async function fetchAlerts(limit = 6): Promise<AlertRow[]> {
+export async function fetchAlerts(limit = 6, scope?: string | null): Promise<AlertRow[]> {
   const sb = getSupabase()
-  const { data, error } = await sb
+  const query = applyEstablishmentScope(
+    sb
     .from('alerts')
     .select('*')
     .eq('resolved', false)
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(limit),
+    scope,
+  )
+  const { data, error } = await query
 
   if (error) throw new Error(`fetchAlerts: ${error.message}`)
   return (data as AlertRow[]) ?? []
 }
 
-export async function fetchActivityLog(limit = 6): Promise<AuditLogRow[]> {
+export async function fetchActivityLog(limit = 6, scope?: string | null): Promise<AuditLogRow[]> {
   const sb = getSupabase()
-  const { data, error } = await sb
+  const query = applyEstablishmentScope(
+    sb
     .from('audit_logs')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(limit),
+    scope,
+  )
+  const { data, error } = await query
 
   if (error) throw new Error(`fetchActivityLog: ${error.message}`)
   return (data as AuditLogRow[]) ?? []
@@ -476,4 +496,9 @@ async function countRows(table: string, apply?: (query: any) => any): Promise<nu
 function percent(value: number, total: number): number {
   if (total <= 0) return 0
   return Math.round((value / total) * 100)
+}
+
+function applyEstablishmentScope<T>(query: T, scope?: string | null): T {
+  if (!scope) return query
+  return (query as { eq: (column: string, value: string) => T }).eq('establishment_id', scope)
 }

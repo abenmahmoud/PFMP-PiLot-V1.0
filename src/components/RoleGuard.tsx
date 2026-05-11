@@ -16,6 +16,8 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
   const auth = useAuth()
   const me = useCurrentUser()
   const role = isDemoMode() ? me.role : auth.role
+  const superadminTenantScope =
+    !isDemoMode() && role === 'superadmin' && Boolean(auth.activeEstablishmentId)
 
   if (!isDemoMode() && auth.loading) {
     return (
@@ -27,7 +29,7 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
     )
   }
 
-  if (!role || !allow.includes(role)) {
+  if (!role || (!allow.includes(role) && !superadminTenantScope)) {
     return (
       <EmptyState
         icon={<ShieldAlert className="w-5 h-5" />}
