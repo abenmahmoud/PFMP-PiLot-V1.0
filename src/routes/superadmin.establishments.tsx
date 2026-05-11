@@ -322,9 +322,13 @@ function EstablishmentsSupabase() {
                     >
                       {r.establishment.active ? 'Désactiver' : 'Activer'}
                     </Button>
-                    <Button size="sm" variant="secondary">
+                    <Link
+                      to="/superadmin/establishments/$id"
+                      params={{ id: r.establishment.id }}
+                      className="inline-flex h-8 items-center justify-center rounded-md border border-[var(--color-border-strong)] bg-white px-2.5 text-xs font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-muted)]"
+                    >
                       Voir détail
-                    </Button>
+                    </Link>
                   </div>
                 ),
               },
@@ -423,9 +427,13 @@ function EstablishmentsDemoContent() {
                 <Button size="sm" variant="ghost" iconLeft={<Power className="w-3.5 h-3.5" />}>
                   {e.active ? 'Désactiver' : 'Activer'}
                 </Button>
-                <Button size="sm" variant="secondary">
+                <Link
+                  to="/superadmin/establishments/$id"
+                  params={{ id: e.id }}
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-[var(--color-border-strong)] bg-white px-2.5 text-xs font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-muted)]"
+                >
                   Voir détail
-                </Button>
+                </Link>
               </div>
             ),
           },
