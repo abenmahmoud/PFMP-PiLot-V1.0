@@ -118,31 +118,40 @@ parcours MVP).
 
 **Estimé :** 2-3 semaines.
 
-### P1.1 — Import CSV élèves
-- Page `/import/students`, drag & drop
-- Mapping colonnes intelligent (compatibilité Pronote/STSWeb)
-- Détection doublons (nom+prénom+date naissance)
-- Rapport import
-- **Critère done :** Blaïse Cendrars 398 élèves importés en 5 min
+### P1.3 — Import SIECLE classes + élèves
+- Page `/imports/siecle` ou bouton "Importer SIECLE" depuis `/students`
+- Détection divisions/classes
+- Création automatique des classes
+- Création/rattachement des élèves
+- Aucun email élève obligatoire
+- **Critère done :** classes + élèves pro/CAP importés depuis un fichier SIECLE fictif puis réel
 
-### P1.2 — Import CSV classes + profs
-- Pareil que P1.1 pour classes (avec lien `formation_referential_id`
-  optionnel à ce stade) et profs
-- **Critère done :** structure pédagogique Blaïse Cendrars en DB
+### P1.4 — Codes élèves par classe
+- Génération de codes personnels par élève
+- QR code par élève
+- Fiche classe imprimable pour le professeur principal
+- Révocation / réinitialisation de code
+- **Critère done :** un professeur principal peut remettre les accès à toute sa classe sans email élève
 
-### P1.3 — Import XLSX entreprises
+### P1.5 — Portail d'entrée Administration / Enseignant / Élève
+- Choix du profil à l'arrivée sur l'application
+- Administration et enseignants : compte nominatif
+- Élèves : accès par code personnel
+- **Critère done :** l'élève entre avec son code, sans email
+
+### P1.6 — Import XLSX entreprises
 - Mapping colonnes pour fichier réel Blaïse Cendrars (646 entreprises,
   19 colonnes)
 - Dédoublonnage SIRET
 - **Critère done :** réseau Blaïse Cendrars chargé
 
-### P1.4 — Affectations PP → référents (CRUD complet)
+### P1.7 — Affectations PP → référents (CRUD complet)
 - `/assignments` : créer/modifier/supprimer affectations
 - TeacherLoadIndicator, alerte surcharge
 - **Critère done :** affectations enregistrées et reflétées dans
   my-students
 
-### P1.5 — Périodes PFMP CRUD
+### P1.8 — Périodes PFMP CRUD
 - `/pfmp-periods` : création période, dates, classes concernées
 - Statuts : préparation → en cours → terminée → archivée
 - Audit logs actifs partout

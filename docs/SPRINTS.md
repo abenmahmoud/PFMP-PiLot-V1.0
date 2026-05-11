@@ -4,7 +4,7 @@
 > Mis à jour à chaque ouverture/fermeture de sprint.
 > Référence pour Claude (orchestration) et Codex (exécution).
 
-**Dernière mise à jour :** 11 mai 2026 (P1.2 invitations DDFPT closed, P1.2.1 prêt)
+**Dernière mise à jour :** 11 mai 2026 (decision SIECLE + codes eleves)
 
 ---
 
@@ -51,12 +51,14 @@
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
 | P1.2 (hors-roadmap) | Invitations DDFPT + email FR | — | [#24](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/24) (`7a0582a`) | ✅ MERGÉ (`sprints/P1.2_pr_audit.md` GO) |
-| P1.2.1 (hors-roadmap) | Identité tenant éditable + SetupChecklist | `briefs/P1.2.1_tenant_identity_setup_checklist.md` ✅ | — | 🔵 prêt |
-| P1.1 | Import CSV élèves | `briefs/P1.1.md` ✅ | — | 🔵 prêt |
-| P1.2 | Import CSV classes + profs | `briefs/P1.2.md` ✅ | — | 🔵 prêt |
-| P1.3 | Import XLSX entreprises (+ migration 0006) | `briefs/P1.3.md` ✅ | — | 🔵 prêt |
-| P1.4 | Affectations PP → référents | `briefs/P1.4.md` ✅ | — | 🔵 prêt |
-| P1.5 | Périodes PFMP CRUD | `briefs/P1.5.md` ✅ | — | 🔵 prêt |
+| P1.2.1 (hors-roadmap) | Identité tenant éditable + SetupChecklist | `briefs/P1.2.1_tenant_identity_setup_checklist.md` ✅ | [#25](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/25) | 🟡 audit/merge |
+| P1.2.2 (hors-roadmap) | Lien tenant + QR code établissement | `briefs/P1.2.2_tenant_access_link_qr.md` ✅ | [#26](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/26) | 🟡 empilé sur #25 |
+| P1.3 | Import SIECLE classes + élèves | `briefs/P1.3_siecle_import_classes_students.md` ✅ | — | 🔵 prêt |
+| P1.4 | Codes élèves par classe | `briefs/P1.4_student_codes_by_class.md` ✅ | — | 🔵 prêt |
+| P1.5 | Portail entrée Administration / Enseignant / Élève | — | — | 🔵 à briefer |
+| P1.6 | Import XLSX entreprises | `briefs/P1.3_import_companies.md` ✅ | — | 🔵 prêt à renommer |
+| P1.7 | Affectations PP → référents | `briefs/P1.4_assignments.md` ✅ | — | 🔵 prêt à renommer |
+| P1.8 | Périodes PFMP CRUD | `briefs/P1.5_pfmp_periods.md` ✅ | — | 🔵 prêt à renommer |
 
 ---
 
@@ -164,6 +166,15 @@ via Chrome MCP. Voir `sprints/P1.2_pr_audit.md`.
 test → OK). Rate limit ~4 emails/h tolérable.
 - Bloquant avant phase pilote Blaïse Cendrars : sprint dédié configuration Resend SMTP
 à insérer **après P1.2.1**, **avant P1.1** (import CSV élèves = vague d'invitations).
+
+### 11 mai 2026 — Accès élèves : SIECLE d'abord, pas d'invitation email
+- Décision : les élèves ne seront pas invités par email dans le MVP.
+- Source prioritaire pour créer classes + élèves : export SIECLE.
+- Les accès élèves seront générés par classe, avec un code personnel par élève.
+- Un code partagé par classe est interdit.
+- Les adultes gardent des comptes nominatifs pour audit, validation et responsabilité.
+- Roadmap réordonnée : P1.3 import SIECLE, P1.4 codes élèves, P1.5 portail d'entrée.
+- Trace détaillée : `sprints/P1.3_siecle_student_access_decision.md`.
 
 ### 7 mai 2026 — Briefs P0.1-P0.9 alignés v2
 - Décision : tous les briefs P0 incluent une note "Note v2" qui
