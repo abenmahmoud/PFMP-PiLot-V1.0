@@ -4,6 +4,7 @@ import { AlertTriangle, Building2, FileText, Shield, Sparkles } from 'lucide-rea
 import { AppLayout } from '@/components/AppLayout'
 import { RoleGuard } from '@/components/RoleGuard'
 import { EmptyState } from '@/components/EmptyState'
+import { TenantAccessCard } from '@/components/TenantAccessCard'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Input, Label, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -205,6 +206,8 @@ function SettingsSupabase() {
             </div>
           </CardBody>
         </Card>
+
+        <TenantAccessCard establishment={data.establishment} className="lg:col-span-2" />
 
         <Card>
           <CardHeader>

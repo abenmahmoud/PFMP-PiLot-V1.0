@@ -13,6 +13,7 @@ import {
 import { AppLayout } from '@/components/AppLayout'
 import { EmptyState } from '@/components/EmptyState'
 import { InviteUserForm } from '@/components/InviteUserForm'
+import { TenantAccessCard } from '@/components/TenantAccessCard'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -221,6 +222,8 @@ function EstablishmentDetailLayout({ detail }: { detail: EstablishmentDetail }) 
             <Badge tone="neutral">Domaine non verifie</Badge>
           )}
         </div>
+
+        <TenantAccessCard establishment={establishment} />
 
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <MetricCard label="Eleves" value={metrics.students} icon={<Users className="w-4 h-4" />} />
