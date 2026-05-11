@@ -31,6 +31,9 @@ function SettingsPage() {
 function SettingsSupabase() {
   const auth = useAuth()
   const [data, setData] = useState<TenantSettings | null>(null)
+  const [name, setName] = useState('')
+  const [city, setCity] = useState('')
+  const [uai, setUai] = useState('')
   const [schoolYear, setSchoolYear] = useState('2025-2026')
   const [threshold, setThreshold] = useState(6)
   const [aiEnabled, setAiEnabled] = useState(false)
@@ -56,6 +59,9 @@ function SettingsSupabase() {
       .then((nextData) => {
         if (!mounted) return
         setData(nextData)
+        setName(nextData.establishment?.name ?? '')
+        setCity(nextData.establishment?.city ?? '')
+        setUai(nextData.establishment?.uai ?? '')
         setSchoolYear(nextData.settings?.school_year ?? '2025-2026')
         setThreshold(nextData.settings?.teacher_load_threshold ?? 6)
         setAiEnabled(nextData.settings?.ai_enabled ?? false)
@@ -76,10 +82,20 @@ function SettingsSupabase() {
 
   async function handleSave() {
     if (!data?.establishment) return
+    const cleanName = name.trim()
+    if (!cleanName) {
+      setSaved(false)
+      setError("Le nom ne peut pas etre vide.")
+      return
+    }
+
     setSaving(true)
     setSaved(false)
     setError(null)
     const input: UpdateSettingsInput = {
+      name: cleanName,
+      city: city.trim() || null,
+      uai: uai.trim().toUpperCase() || null,
       school_year: schoolYear.trim() || null,
       teacher_load_threshold: threshold,
       ai_enabled: aiEnabled,
@@ -87,8 +103,19 @@ function SettingsSupabase() {
       logo_url: logoUrl.trim() || null,
     }
     try {
-      const settings = await updateTenantSettings(data.establishment.id, input)
-      setData((current) => (current ? { ...current, settings } : current))
+      const result = await updateTenantSettings(data.establishment.id, input)
+      setData((current) =>
+        current
+          ? {
+            ...current,
+            establishment: result.establishment,
+            settings: result.settings,
+          }
+          : current,
+      )
+      setName(result.establishment.name)
+      setCity(result.establishment.city ?? '')
+      setUai(result.establishment.uai ?? '')
       setSaved(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -155,9 +182,23 @@ function SettingsSupabase() {
             <CardTitle icon={<Building2 className="w-4 h-4" />}>Identite de l'etablissement</CardTitle>
           </CardHeader>
           <CardBody className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ReadonlyField label="Nom" value={data.establishment.name} />
-            <ReadonlyField label="Ville" value={data.establishment.city ?? 'Non renseignee'} />
-            <ReadonlyField label="UAI / RNE" value={data.establishment.uai ?? 'Non renseigne'} />
+            <div>
+              <Label>Nom</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div>
+              <Label>Ville</Label>
+              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Paris" />
+            </div>
+            <div>
+              <Label>UAI / RNE</Label>
+              <Input
+                value={uai}
+                onChange={(e) => setUai(e.target.value.toUpperCase())}
+                placeholder="0750000A"
+                maxLength={8}
+              />
+            </div>
             <div>
               <Label>Annee scolaire</Label>
               <Input value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} />
@@ -326,15 +367,6 @@ function SettingsDemo() {
         </div>
       </RoleGuard>
     </AppLayout>
-  )
-}
-
-function ReadonlyField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <Label>{label}</Label>
-      <Input value={value} readOnly className="bg-[var(--color-muted)]" />
-    </div>
   )
 }
 
