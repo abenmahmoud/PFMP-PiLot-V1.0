@@ -4,7 +4,7 @@
 > Mis à jour à chaque ouverture/fermeture de sprint.
 > Référence pour Claude (orchestration) et Codex (exécution).
 
-**Dernière mise à jour :** 11 mai 2026 (decision SIECLE + codes eleves)
+**Dernière mise à jour :** 11 mai 2026 (P1.2.1 + P1.2.2 mergés + audit Claude, doctrine SIECLE actée)
 
 ---
 
@@ -51,8 +51,8 @@
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
 | P1.2 (hors-roadmap) | Invitations DDFPT + email FR | — | [#24](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/24) (`7a0582a`) | ✅ MERGÉ (`sprints/P1.2_pr_audit.md` GO) |
-| P1.2.1 (hors-roadmap) | Identité tenant éditable + SetupChecklist | `briefs/P1.2.1_tenant_identity_setup_checklist.md` ✅ | [#25](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/25) | 🟡 audit/merge |
-| P1.2.2 (hors-roadmap) | Lien tenant + QR code établissement | `briefs/P1.2.2_tenant_access_link_qr.md` ✅ | [#26](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/26) | 🟡 empilé sur #25 |
+| P1.2.1 (hors-roadmap) | Identité tenant éditable + SetupChecklist | `briefs/P1.2.1_tenant_identity_setup_checklist.md` ✅ | [#25](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/25) (`3cac9d1`) | ✅ MERGÉ (`sprints/P1.2.1_P1.2.2_P1.3_audit_claude.md` GO) |
+| P1.2.2 (hors-roadmap) | Lien tenant + QR code établissement | `briefs/P1.2.2_tenant_access_link_qr.md` ✅ | [#26](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/26) + [#28](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/28) (`977418e`) | ✅ MERGÉ (`sprints/P1.2.1_P1.2.2_P1.3_audit_claude.md` GO) |
 | P1.3 | Import SIECLE classes + élèves | `briefs/P1.3_siecle_import_classes_students.md` ✅ | — | 🔵 prêt |
 | P1.4 | Codes élèves par classe | `briefs/P1.4_student_codes_by_class.md` ✅ | — | 🔵 prêt |
 | P1.5 | Portail entrée Administration / Enseignant / Élève | — | — | 🔵 à briefer |
@@ -149,6 +149,14 @@
   superadmin obligatoire.
 - Phase P2 ajoutée à la roadmap (entre l'ancienne P1 et l'ancienne
   P2 documents/signatures, qui devient P3).
+
+### 11 mai 2026 — P1.2.1 + P1.2.2 mergés + régularisation stacked PRs
+- PR #25 (P1.2.1 identité tenant + SetupChecklist) : auditée GO_MERGE, mergée sur main (`901a8f8`).
+- PR #26 (P1.2.2 TenantAccessCard + QR) et PR #27 (doctrine SIECLE) : initialement mergées dans des branches empilées au lieu de main.
+- Régularisation via PR #28 (`436fee0`) qui ramène tous les commits sur main : TenantAccessCard, lib/tenantAccess, qrcode.react@4.2.0, briefs P1.3/P1.4 SIECLE, ROADMAP/SPRINTS/VISION update doctrine.
+- Audit complet Claude : `sprints/P1.2.1_P1.2.2_P1.3_audit_claude.md` (`640b2a8`). Build + typecheck verts sur les 3 PR. Aucun blocker.
+- Investigation "boutons cassés" : code statiquement OK, hypothèses popup blocker / confusion produit / test localhost. À valider en test manuel BraveHeart.
+- Prochaine étape : test prod 15 min puis P1.2.3 Resend SMTP avant P1.3 import SIECLE.
 
 ### 11 mai 2026 — P1.2 invitations DDFPT (hors-roadmap)
 - Décision : insertion d'un sprint hors-roadmap pour débloquer le flow superadmin → DDFPT
