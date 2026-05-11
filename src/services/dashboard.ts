@@ -5,6 +5,7 @@ import type {
   AuditLogRow,
   CompanyRow,
   DocumentRow,
+  EstablishmentRow,
   PfmpPeriodRow,
   PlacementRow,
   TeacherAssignmentRow,
@@ -48,6 +49,13 @@ export interface DashboardCompanyNetwork {
   underrepresentedFamilies: string[]
 }
 
+export interface DashboardSetupChecklist {
+  identityComplete: boolean
+  classesCount: number
+  studentsCount: number
+  periodsCount: number
+}
+
 export interface DashboardData {
   currentPeriod: PfmpPeriodRow | null
   kpis: DashboardKpis
@@ -55,12 +63,16 @@ export interface DashboardData {
   companyNetwork: DashboardCompanyNetwork
   alerts: AlertRow[]
   activity: AuditLogRow[]
+  setupChecklist: DashboardSetupChecklist
 }
 
 export async function fetchDashboardData(): Promise<DashboardData> {
   const sb = getSupabase()
   const scope = await getActiveEstablishmentScope()
-  const currentPeriod = await fetchCurrentPeriod(scope)
+  const [currentPeriod, setupChecklist] = await Promise.all([
+    fetchCurrentPeriod(scope),
+    fetchSetupChecklist(scope),
+  ])
   const periodId = currentPeriod?.id
 
   if (!periodId) {
@@ -72,6 +84,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       companyNetwork: emptyCompanyNetwork(),
       alerts,
       activity,
+      setupChecklist,
     }
   }
 
@@ -140,6 +153,36 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     companyNetwork: buildCompanyNetworkFromRows(companies, placements),
     alerts: alerts.slice(0, 6),
     activity,
+    setupChecklist,
+  }
+}
+
+async function fetchSetupChecklist(scope?: string | null): Promise<DashboardSetupChecklist> {
+  const sb = getSupabase()
+  const establishmentQuery = applyEstablishmentScope(
+    sb.from('establishments').select('city,uai').order('created_at').limit(1),
+    scope,
+  )
+
+  const [establishmentResult, classesCount, studentsCount, periodsCount] = await Promise.all([
+    establishmentQuery.maybeSingle(),
+    countRows('classes', (query) => applyEstablishmentScope(query, scope)),
+    countRows('students', (query) => applyEstablishmentScope(query, scope)),
+    countRows('pfmp_periods', (query) => applyEstablishmentScope(query, scope)),
+  ])
+
+  if (establishmentResult.error) {
+    throw new Error(`fetchSetupChecklist establishment: ${establishmentResult.error.message}`)
+  }
+
+  const establishment =
+    (establishmentResult.data as Pick<EstablishmentRow, 'city' | 'uai'> | null) ?? null
+
+  return {
+    identityComplete: Boolean(establishment?.city && establishment.uai),
+    classesCount,
+    studentsCount,
+    periodsCount,
   }
 }
 

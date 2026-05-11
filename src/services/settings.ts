@@ -13,11 +13,19 @@ export interface TenantSettings {
 }
 
 export interface UpdateSettingsInput {
+  name?: string
+  city?: string | null
+  uai?: string | null
   school_year: string | null
   teacher_load_threshold: number
   ai_enabled: boolean
   rgpd_notice: string | null
   logo_url: string | null
+}
+
+export interface UpdateSettingsResult {
+  establishment: EstablishmentRow
+  settings: EstablishmentSettingsRow
 }
 
 export async function fetchTenantSettings(profile: ProfileRow): Promise<TenantSettings> {
@@ -58,9 +66,26 @@ export async function fetchTenantSettings(profile: ProfileRow): Promise<TenantSe
 export async function updateTenantSettings(
   establishmentId: string,
   input: UpdateSettingsInput,
-): Promise<EstablishmentSettingsRow> {
+): Promise<UpdateSettingsResult> {
   const sb = getSupabase()
-  const { data, error } = await sb
+  const shouldUpdateIdentity =
+    input.name !== undefined || input.city !== undefined || input.uai !== undefined
+
+  const establishmentPatch: Partial<Pick<EstablishmentRow, 'name' | 'city' | 'uai'>> = {}
+  if (input.name !== undefined) establishmentPatch.name = input.name
+  if (input.city !== undefined) establishmentPatch.city = input.city
+  if (input.uai !== undefined) establishmentPatch.uai = input.uai
+
+  const establishmentOperation = shouldUpdateIdentity
+    ? sb
+      .from('establishments')
+      .update(establishmentPatch)
+      .eq('id', establishmentId)
+      .select('*')
+      .single()
+    : sb.from('establishments').select('*').eq('id', establishmentId).single()
+
+  const settingsOperation = sb
     .from('establishment_settings')
     .upsert({
       establishment_id: establishmentId,
@@ -73,14 +98,53 @@ export async function updateTenantSettings(
     .select('*')
     .single()
 
-  if (error) throw new Error(`updateTenantSettings: ${error.message}`)
+  const [establishmentSettled, settingsSettled] = await Promise.allSettled([
+    establishmentOperation,
+    settingsOperation,
+  ])
+
+  const establishmentResult = unwrapSupabaseSettled<EstablishmentRow>(
+    establishmentSettled,
+    'identite etablissement',
+  )
+  const settingsResult = unwrapSupabaseSettled<EstablishmentSettingsRow>(
+    settingsSettled,
+    'parametres etablissement',
+  )
 
   logAuditAsync({
     action: 'superadmin_action',
     description: 'Parametres etablissement mis a jour',
     establishmentId,
-    metadata: { scope: 'establishment_settings' },
+    metadata: { scope: 'establishment_settings', identityUpdated: shouldUpdateIdentity },
   })
 
-  return data as EstablishmentSettingsRow
+  return {
+    establishment: establishmentResult,
+    settings: settingsResult,
+  }
+}
+
+interface SupabaseSettledValue<T> {
+  data: T | null
+  error: { message: string } | null
+}
+
+function unwrapSupabaseSettled<T>(
+  settled: PromiseSettledResult<unknown>,
+  label: string,
+): T {
+  if (settled.status === 'rejected') {
+    throw new Error(`Echec ${label}: ${String(settled.reason)}`)
+  }
+
+  const result = settled.value as SupabaseSettledValue<T>
+  if (result.error) {
+    throw new Error(`Echec ${label}: ${result.error.message}`)
+  }
+  if (!result.data) {
+    throw new Error(`Echec ${label}: aucune donnee retournee`)
+  }
+
+  return result.data
 }

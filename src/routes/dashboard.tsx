@@ -17,6 +17,7 @@ import { AlertList } from '@/components/AlertList'
 import { ActivityTimeline } from '@/components/ActivityTimeline'
 import { AiAssistantPanel } from '@/components/AiAssistantPanel'
 import { EmptyState } from '@/components/EmptyState'
+import { SetupChecklist, type SetupChecklistStep } from '@/components/SetupChecklist'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -154,20 +155,23 @@ function DashboardSupabase() {
 
   return (
     <AppLayout title="Dashboard établissement" subtitle={subtitle}>
-      {!period ? (
-        <EmptyState
-          icon={<Calendar className="w-5 h-5" />}
-          title="Aucune période PFMP en cours"
-          description="Créez ou activez une période PFMP pour commencer à suivre les affectations, visites et documents réels de l'établissement."
-          action={
-            <Link to="/pfmp-periods">
-              <Button iconLeft={<Plus className="w-4 h-4" />}>Créer une période PFMP</Button>
-            </Link>
-          }
-        />
-      ) : (
-        <DashboardSupabaseContent data={data} />
-      )}
+      <div className="space-y-6">
+        <SetupChecklist steps={buildSetupSteps(data.setupChecklist)} />
+        {!period ? (
+          <EmptyState
+            icon={<Calendar className="w-5 h-5" />}
+            title="Aucune période PFMP en cours"
+            description="Créez ou activez une période PFMP pour commencer à suivre les affectations, visites et documents réels de l'établissement."
+            action={
+              <Link to="/pfmp-periods">
+                <Button iconLeft={<Plus className="w-4 h-4" />}>Créer une période PFMP</Button>
+              </Link>
+            }
+          />
+        ) : (
+          <DashboardSupabaseContent data={data} />
+        )}
+      </div>
     </AppLayout>
   )
 }
@@ -463,6 +467,7 @@ function DashboardDemo() {
       title="Dashboard établissement"
       subtitle="Lycée Professionnel Jean Moulin · PFMP 2 — Printemps 2026"
     >
+      <SetupChecklist steps={buildDemoSetupSteps()} />
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           label="Élèves en PFMP"
@@ -735,6 +740,46 @@ function DashboardDemo() {
       </p>
     </AppLayout>
   )
+}
+
+function buildSetupSteps(setup: DashboardData['setupChecklist']): SetupChecklistStep[] {
+  return [
+    { id: 'account', label: 'Compte active', done: true },
+    {
+      id: 'identity',
+      label: 'Identite etablissement completee',
+      done: setup.identityComplete,
+      cta: { label: 'Configurer', to: '/settings' },
+    },
+    {
+      id: 'class',
+      label: 'Premiere classe creee',
+      done: setup.classesCount > 0,
+      cta: { label: 'Creer une classe', to: '/classes' },
+    },
+    {
+      id: 'student',
+      label: 'Premier eleve importe',
+      done: setup.studentsCount > 0,
+      cta: { label: 'Ajouter des eleves', to: '/students' },
+    },
+    {
+      id: 'period',
+      label: 'Premiere periode PFMP definie',
+      done: setup.periodsCount > 0,
+      cta: { label: 'Creer une periode', to: '/pfmp-periods' },
+    },
+  ]
+}
+
+function buildDemoSetupSteps(): SetupChecklistStep[] {
+  return [
+    { id: 'account', label: 'Compte active', done: true },
+    { id: 'identity', label: 'Identite etablissement completee', done: true },
+    { id: 'class', label: 'Premiere classe creee', done: true },
+    { id: 'student', label: 'Premier eleve importe', done: true },
+    { id: 'period', label: 'Premiere periode PFMP definie', done: true },
+  ]
 }
 
 function DashboardSkeleton() {
