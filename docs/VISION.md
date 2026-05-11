@@ -582,25 +582,26 @@ validation humaine pour chaque nouveau lycée.
 2. Superadmin lance l'analyseur IA sur les .docx Blaïse Cendrars
 3. Superadmin valide les référentiels MELEC, PCEPC, AQE, ETL
 4. Admin Blaïse Cendrars se connecte
-5. Admin importe la liste élèves (CSV depuis Pronote)
-6. Admin importe la liste profs
-7. Admin importe (ou édite) les classes
+5. Admin importe la liste SIECLE (classes + élèves)
+6. Admin génère les codes élèves par classe (pas d'email élève requis)
+7. Admin importe la liste profs
 8. Admin crée les périodes PFMP P1 et P2 avec dates précises
-9. Admin importe la liste des 646 entreprises (CSV)
-10. PP affecte les élèves de sa classe à des profs référents
-11. Professeur référent se connecte
-12. Il voit seulement ses élèves
-13. Il ouvre fiche stage d'un élève
-14. La convention est pré-remplie automatiquement (référentiel +
+9. Admin importe la liste des 646 entreprises (CSV/XLSX)
+10. PP remet les codes élèves de sa classe si l'espace élève est activé
+11. PP affecte les élèves de sa classe à des profs référents
+12. Professeur référent se connecte
+13. Il voit seulement ses élèves
+14. Il ouvre fiche stage d'un élève
+15. La convention est pré-remplie automatiquement (référentiel +
     coordonnées élève)
-15. Il saisit l'entreprise + tuteur + dates → la convention se met à
+16. Il saisit l'entreprise + tuteur + dates → la convention se met à
     jour
-16. Il génère la convention PDF
-17. Il fait une visite (formulaire mobile)
-18. Il valide le compte rendu
-19. DDFPT voit la visite validée
-20. À la fin du stage, attestation auto-générée avec bilan livret
-21. Documents archivables en ZIP
+17. Il génère la convention PDF
+18. Il fait une visite (formulaire mobile)
+19. Il valide le compte rendu
+20. DDFPT voit la visite validée
+21. À la fin du stage, attestation auto-générée avec bilan livret
+22. Documents archivables en ZIP
 
 ---
 
@@ -614,7 +615,7 @@ validation humaine pour chaque nouveau lycée.
 - Empty states partout
 
 **P1 — Productivité établissement de base (2-3 semaines)**
-- Import CSV élèves/classes/profs/entreprises (646 entreprises Blaïse)
+- Import SIECLE classes/élèves + import profs/entreprises (646 entreprises Blaïse)
 - Affectations réelles (PP → référents)
 - Documents lecture, audit logs actifs
 - Superadmin stats agrégées
