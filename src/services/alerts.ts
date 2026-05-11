@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type { AlertLevel, AlertRow } from '@/lib/database.types'
 
 export interface AlertFilters {
@@ -8,11 +9,13 @@ export interface AlertFilters {
 
 export async function fetchAlerts(filters: AlertFilters = {}): Promise<AlertRow[]> {
   const sb = getSupabase()
+  const scope = await getActiveEstablishmentScope()
   let query = sb
     .from('alerts')
     .select('*')
     .order('created_at', { ascending: false })
 
+  if (scope) query = query.eq('establishment_id', scope)
   if (filters.severity) query = query.eq('severity', filters.severity)
   if (filters.resolved !== undefined) query = query.eq('resolved', filters.resolved)
 

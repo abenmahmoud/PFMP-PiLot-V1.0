@@ -1,5 +1,6 @@
 import { getSupabase } from '@/lib/supabase'
 import { logAuditAsync } from '@/lib/audit'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type {
   EstablishmentRow,
   EstablishmentSettingsRow,
@@ -21,12 +22,15 @@ export interface UpdateSettingsInput {
 
 export async function fetchTenantSettings(profile: ProfileRow): Promise<TenantSettings> {
   const sb = getSupabase()
-  if (!profile.establishment_id && profile.role !== 'superadmin') {
+  const activeScope = await getActiveEstablishmentScope()
+  const establishmentId = profile.establishment_id ?? activeScope
+
+  if (!establishmentId && profile.role !== 'superadmin') {
     return { establishment: null, settings: null }
   }
 
-  const establishmentQuery = profile.establishment_id
-    ? sb.from('establishments').select('*').eq('id', profile.establishment_id).maybeSingle()
+  const establishmentQuery = establishmentId
+    ? sb.from('establishments').select('*').eq('id', establishmentId).maybeSingle()
     : sb.from('establishments').select('*').order('created_at').limit(1).maybeSingle()
 
   const { data: establishmentData, error: establishmentError } = await establishmentQuery

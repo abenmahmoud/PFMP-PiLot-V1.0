@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type {
   CompanyRow,
   PfmpPeriodRow,
@@ -54,12 +55,14 @@ export interface CompanyNetworkSummary {
 
 export async function fetchCompanies(filters: CompanyFilters = {}): Promise<CompanyListItem[]> {
   const sb = getSupabase()
+  const scope = await getActiveEstablishmentScope()
   let query = sb
     .from('companies')
     .select('*')
     .is('archived_at', null)
     .order('name')
 
+  if (scope) query = query.eq('establishment_id', scope)
   if (filters.city) query = query.ilike('city', `%${filters.city}%`)
   if (filters.professionalFamily) query = query.eq('professional_family', filters.professionalFamily)
   if (filters.reliability) query = query.eq('reliability', filters.reliability)

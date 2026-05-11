@@ -34,6 +34,8 @@ export interface AuthState {
   role: UserRole | null
   /** Établissement de rattachement (null pour superadmin) */
   establishmentId: string | null
+  /** Tenant actif choisi par un superadmin pour l'incarnation/support */
+  activeEstablishmentId: string | null
   /** Erreur éventuelle de récupération de la session ou du profil */
   error: string | null
 }
@@ -45,6 +47,7 @@ export const initialAuthState: AuthState = {
   profile: null,
   role: null,
   establishmentId: null,
+  activeEstablishmentId: null,
   error: null,
 }
 
@@ -142,6 +145,17 @@ export async function getCurrentSession(): Promise<Session | null> {
   return data.session
 }
 
+export function readActiveEstablishmentId(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== 'object') return null
+  const value = (metadata as Record<string, unknown>).active_establishment_id
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+export async function getActiveEstablishmentScope(): Promise<string | null> {
+  const session = await getCurrentSession()
+  return readActiveEstablishmentId(session?.user.user_metadata)
+}
+
 /**
  * Construit un AuthState complet à partir de la session courante.
  * Idéal pour les loaders TanStack Router.
@@ -158,6 +172,7 @@ export async function buildAuthState(): Promise<AuthState> {
     }
 
     const profile = await fetchProfile(session.user.id)
+    const activeEstablishmentId = readActiveEstablishmentId(session.user.user_metadata)
     return {
       loading: false,
       session,
@@ -165,6 +180,7 @@ export async function buildAuthState(): Promise<AuthState> {
       profile,
       role: profile?.role ?? null,
       establishmentId: profile?.establishment_id ?? null,
+      activeEstablishmentId,
       error: profile ? null : 'Profil introuvable. Contacter un administrateur.',
     }
   } catch (e) {
@@ -197,6 +213,7 @@ export function subscribeToAuthChanges(callback: AuthSubscriber): () => void {
         return
       }
       const profile = await fetchProfile(session.user.id)
+      const activeEstablishmentId = readActiveEstablishmentId(session.user.user_metadata)
       callback({
         loading: false,
         session,
@@ -204,6 +221,7 @@ export function subscribeToAuthChanges(callback: AuthSubscriber): () => void {
         profile,
         role: profile?.role ?? null,
         establishmentId: profile?.establishment_id ?? null,
+        activeEstablishmentId,
         error: profile ? null : 'Profil introuvable.',
       })
     }, 0)

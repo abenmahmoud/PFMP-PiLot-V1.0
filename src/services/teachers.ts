@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { getActiveEstablishmentScope } from '@/lib/auth'
 import type { ClassRow, TeacherAssignmentRow, TeacherRow } from '@/lib/database.types'
 
 export interface TeacherListItem {
@@ -9,12 +10,17 @@ export interface TeacherListItem {
 
 export async function fetchTeachers(): Promise<TeacherListItem[]> {
   const sb = getSupabase()
-  const { data, error } = await sb
+  const scope = await getActiveEstablishmentScope()
+  let query = sb
     .from('teachers')
     .select('*')
     .is('archived_at', null)
     .order('last_name')
     .order('first_name')
+
+  if (scope) query = query.eq('establishment_id', scope)
+
+  const { data, error } = await query
 
   if (error) throw new Error(`fetchTeachers teachers: ${error.message}`)
 
