@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Building2, Plus, Power } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -28,6 +28,12 @@ const AUTH_LOAD_TIMEOUT_MS = 8000
 // --------------------------------------------------------------------------
 
 function EstablishmentsPage() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+
+  if (pathname !== '/superadmin/establishments') {
+    return <Outlet />
+  }
+
   if (isDemoMode()) {
     return (
       <AppLayout
