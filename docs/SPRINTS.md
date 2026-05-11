@@ -4,7 +4,7 @@
 > Mis à jour à chaque ouverture/fermeture de sprint.
 > Référence pour Claude (orchestration) et Codex (exécution).
 
-**Dernière mise à jour :** 7 mai 2026 (v2 alignée VISION v2 + ROADMAP v2)
+**Dernière mise à jour :** 11 mai 2026 (P1.2 invitations DDFPT closed, P1.2.1 prêt)
 
 ---
 
@@ -46,8 +46,12 @@
 
 ## P1 — Productivité établissement de base
 
+> Note : un sprint **P1.2 invitations DDFPT** (hors-roadmap initiale, demandé par BraveHeart pour débloquer le flow superadmin→tenant) a été inséré et mergé le 11 mai 2026 (PR #24). Voir `sprints/P1.2_pr_audit.md`. Les P1.1-P1.5 ci-dessous restent ceux de la roadmap v2.
+
 | ID | Titre | Brief | PR | Statut |
 |---|---|---|---|---|
+| P1.2 (hors-roadmap) | Invitations DDFPT + email FR | — | [#24](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/24) (`7a0582a`) | ✅ MERGÉ (`sprints/P1.2_pr_audit.md` GO) |
+| P1.2.1 (hors-roadmap) | Identité tenant éditable + SetupChecklist | `briefs/P1.2.1_tenant_identity_setup_checklist.md` ✅ | — | 🔵 prêt |
 | P1.1 | Import CSV élèves | `briefs/P1.1.md` ✅ | — | 🔵 prêt |
 | P1.2 | Import CSV classes + profs | `briefs/P1.2.md` ✅ | — | 🔵 prêt |
 | P1.3 | Import XLSX entreprises (+ migration 0006) | `briefs/P1.3.md` ✅ | — | 🔵 prêt |
@@ -143,6 +147,23 @@
   superadmin obligatoire.
 - Phase P2 ajoutée à la roadmap (entre l'ancienne P1 et l'ancienne
   P2 documents/signatures, qui devient P3).
+
+### 11 mai 2026 — P1.2 invitations DDFPT (hors-roadmap)
+- Décision : insertion d'un sprint hors-roadmap pour débloquer le flow superadmin → DDFPT
+avant d'attaquer P1.1 (import CSV élèves).
+- Livré (PR #24, `7a0582a`) : `/admin/users`, `/onboarding`, API service-role
+`auth.admin.inviteUserByEmail`, audit log `user.invited`.
+- Découverte critique : trigger `handle_new_user()` hardcodait `role='eleve'`. Corrigé via
+migration `fix_handle_new_user_role_propagation` (lecture `raw_user_meta_data.role`).
+- Action manuelle Supabase Auth (URL Config prod + email template FR) faite par Claude
+via Chrome MCP. Voir `sprints/P1.2_pr_audit.md`.
+- Suivi P1.2.1 (hors-roadmap aussi) : identité tenant éditable + SetupChecklist sur dashboard.
+
+### 11 mai 2026 — SMTP built-in flag
+- Décision : continuer avec SMTP built-in Supabase pour la phase actuelle (1 invitation
+test → OK). Rate limit ~4 emails/h tolérable.
+- Bloquant avant phase pilote Blaïse Cendrars : sprint dédié configuration Resend SMTP
+à insérer **après P1.2.1**, **avant P1.1** (import CSV élèves = vague d'invitations).
 
 ### 7 mai 2026 — Briefs P0.1-P0.9 alignés v2
 - Décision : tous les briefs P0 incluent une note "Note v2" qui
