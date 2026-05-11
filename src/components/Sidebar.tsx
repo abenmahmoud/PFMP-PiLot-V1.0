@@ -36,6 +36,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'ddfpt', 'principal', 'referent'], section: 'main' },
+  { to: '/admin/users', label: 'Utilisateurs', icon: UserCog, roles: ['admin', 'ddfpt'], section: 'main' },
   { to: '/my-students', label: 'Mes élèves', icon: GraduationCap, roles: ['principal', 'referent'], section: 'main' },
   { to: '/classes', label: 'Classes', icon: Users, roles: ['admin', 'ddfpt', 'principal'], section: 'main' },
   { to: '/students', label: 'Élèves', icon: GraduationCap, roles: ['admin', 'ddfpt', 'principal'], section: 'main' },
