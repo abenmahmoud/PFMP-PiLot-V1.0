@@ -38,6 +38,7 @@ La démo embarque un établissement fictif — *Lycée Professionnel Jean Moulin
 | `VITE_SUPABASE_URL` | URL projet Supabase | requise pour mode réel |
 | `VITE_SUPABASE_ANON_KEY` | clé publique anon | requise pour mode réel |
 | `VITE_DEMO_MODE` | `true` / `false` | `true` = utilise data/demo.ts, `false` = utilise Supabase |
+| `VITE_PLATFORM_DOMAIN` | `pfmp-pilot.fr` ou domaine acheté | domaine apex utilisé pour résoudre les tenants par sous-domaine |
 | `SUPABASE_SERVICE_ROLE_KEY` | secret backend | **JAMAIS côté client**, uniquement Edge Functions |
 
 En l'absence de `VITE_SUPABASE_URL`, le mode démo s'active automatiquement.

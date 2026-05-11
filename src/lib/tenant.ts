@@ -22,7 +22,11 @@
 
 import type { EstablishmentRow } from './database.types'
 
-export const PLATFORM_DOMAIN = 'pfmp-pilot.fr'
+const DEFAULT_PLATFORM_DOMAIN = 'pfmp-pilot.fr'
+
+export const PLATFORM_DOMAIN =
+  (import.meta.env.VITE_PLATFORM_DOMAIN as string | undefined)?.trim().toLowerCase() ||
+  DEFAULT_PLATFORM_DOMAIN
 
 export type Establishment = EstablishmentRow
 

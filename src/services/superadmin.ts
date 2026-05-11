@@ -14,11 +14,16 @@
 import { getSupabase } from '@/lib/supabase'
 import type {
   AlertRow,
+  AuditLogRow,
+  ClassRow,
   CompanyRow,
   DocumentRow,
   EstablishmentRow,
   EstablishmentSettingsRow,
+  PfmpPeriodRow,
+  ProfileRow,
   StudentRow,
+  TeacherRow,
   TutorRow,
   VisitRow,
 } from '@/lib/database.types'
@@ -82,6 +87,26 @@ export interface CreateEstablishmentInput {
 export interface CreateEstablishmentResult {
   establishment: EstablishmentRow
   settings: EstablishmentSettingsRow | null
+}
+
+export interface EstablishmentDetail {
+  establishment: EstablishmentRow
+  settings: EstablishmentSettingsRow | null
+  profiles: ProfileRow[]
+  classes: ClassRow[]
+  periods: PfmpPeriodRow[]
+  auditLogs: AuditLogRow[]
+  metrics: {
+    users: number
+    classes: number
+    students: number
+    teachers: number
+    companies: number
+    periods: number
+    visits: number
+    documents: number
+    openAlerts: number
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -369,12 +394,101 @@ export async function createEstablishment(
   }
 }
 
+/**
+ * Detail superadmin d'un tenant.
+ *
+ * Le superadmin peut lire cross-tenant via RLS. Les comptes et metriques sont
+ * agregees cote frontend pour rester simples tant que le nombre de tenants est
+ * faible. A terme, une vue SQL dediee remplacera ces SELECT.
+ */
+export async function fetchEstablishmentDetail(id: string): Promise<EstablishmentDetail | null> {
+  const sb = getSupabase()
+
+  const [
+    establishmentResult,
+    settingsResult,
+    profilesResult,
+    classesResult,
+    studentsResult,
+    teachersResult,
+    companiesResult,
+    periodsResult,
+    visitsResult,
+    documentsResult,
+    alertsResult,
+    auditLogsResult,
+  ] = await Promise.all([
+    sb.from('establishments').select('*').eq('id', id).maybeSingle(),
+    sb.from('establishment_settings').select('*').eq('establishment_id', id).maybeSingle(),
+    sb.from('profiles').select('*').eq('establishment_id', id).order('last_name'),
+    sb.from('classes').select('*').eq('establishment_id', id).order('name'),
+    sb.from('students').select('id').eq('establishment_id', id).is('archived_at', null),
+    sb.from('teachers').select('*').eq('establishment_id', id).is('archived_at', null),
+    sb.from('companies').select('id').eq('establishment_id', id).is('archived_at', null),
+    sb.from('pfmp_periods').select('*').eq('establishment_id', id).order('start_date', { ascending: false }),
+    sb.from('visits').select('id').eq('establishment_id', id),
+    sb.from('documents').select('id').eq('establishment_id', id).is('archived_at', null),
+    sb.from('alerts').select('id').eq('establishment_id', id).eq('resolved', false),
+    sb
+      .from('audit_logs')
+      .select('*')
+      .eq('establishment_id', id)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ])
+
+  throwSupabaseError('fetchEstablishmentDetail establishment', establishmentResult.error)
+  throwSupabaseError('fetchEstablishmentDetail settings', settingsResult.error)
+  throwSupabaseError('fetchEstablishmentDetail profiles', profilesResult.error)
+  throwSupabaseError('fetchEstablishmentDetail classes', classesResult.error)
+  throwSupabaseError('fetchEstablishmentDetail students', studentsResult.error)
+  throwSupabaseError('fetchEstablishmentDetail teachers', teachersResult.error)
+  throwSupabaseError('fetchEstablishmentDetail companies', companiesResult.error)
+  throwSupabaseError('fetchEstablishmentDetail periods', periodsResult.error)
+  throwSupabaseError('fetchEstablishmentDetail visits', visitsResult.error)
+  throwSupabaseError('fetchEstablishmentDetail documents', documentsResult.error)
+  throwSupabaseError('fetchEstablishmentDetail alerts', alertsResult.error)
+  throwSupabaseError('fetchEstablishmentDetail auditLogs', auditLogsResult.error)
+
+  const establishment = establishmentResult.data as EstablishmentRow | null
+  if (!establishment) return null
+
+  const profiles = (profilesResult.data ?? []) as ProfileRow[]
+  const classes = (classesResult.data ?? []) as ClassRow[]
+  const periods = (periodsResult.data ?? []) as PfmpPeriodRow[]
+  const auditLogs = (auditLogsResult.data ?? []) as AuditLogRow[]
+
+  return {
+    establishment,
+    settings: (settingsResult.data as EstablishmentSettingsRow | null) ?? null,
+    profiles,
+    classes,
+    periods,
+    auditLogs,
+    metrics: {
+      users: profiles.length,
+      classes: classes.length,
+      students: (studentsResult.data ?? []).length,
+      teachers: ((teachersResult.data ?? []) as TeacherRow[]).length,
+      companies: (companiesResult.data ?? []).length,
+      periods: periods.length,
+      visits: (visitsResult.data ?? []).length,
+      documents: (documentsResult.data ?? []).length,
+      openAlerts: (alertsResult.data ?? []).length,
+    },
+  }
+}
+
 // --------------------------------------------------------------------------
 // Helpers internes
 // --------------------------------------------------------------------------
 
 function throwIfError(label: string, error: { message: string } | null): void {
   if (error) throw new Error(`fetchSuperadminOverview ${label}: ${error.message}`)
+}
+
+function throwSupabaseError(label: string, error: { message: string } | null): void {
+  if (error) throw new Error(`${label}: ${error.message}`)
 }
 
 function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
