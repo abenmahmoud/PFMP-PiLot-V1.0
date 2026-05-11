@@ -9,6 +9,10 @@ import { FieldHint, Input, Label, Textarea } from '@/components/ui/Field'
 import { useAuth } from '@/lib/AuthProvider'
 import { isDemoMode } from '@/lib/supabase'
 import { createEstablishment } from '@/services/superadmin'
+import {
+  inviteUserToEstablishment,
+  type InviteUserRole,
+} from '@/server/invitations.functions'
 
 export const Route = createFileRoute('/superadmin/establishments/new')({
   component: NewEstablishmentPage,
@@ -56,6 +60,10 @@ function NewEstablishmentSupabase() {
     String(DEFAULT_TEACHER_LOAD_THRESHOLD),
   )
   const [rgpdNotice, setRgpdNotice] = useState('')
+  const [adminFirstName, setAdminFirstName] = useState('')
+  const [adminLastName, setAdminLastName] = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
+  const [adminRole, setAdminRole] = useState<InviteUserRole>('ddfpt')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -145,6 +153,15 @@ function NewEstablishmentSupabase() {
       setError('Le seuil de charge doit etre un nombre entre 1 et 30.')
       return
     }
+    const shouldInviteAdmin = Boolean(adminEmail.trim())
+    if (shouldInviteAdmin && !auth.session?.access_token) {
+      setError('Session superadmin introuvable. Reconnectez-vous avant d inviter un admin.')
+      return
+    }
+    if (shouldInviteAdmin && (!adminFirstName.trim() || !adminLastName.trim())) {
+      setError('Prenom et nom du premier admin sont obligatoires si vous renseignez son email.')
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -157,7 +174,24 @@ function NewEstablishmentSupabase() {
         schoolYear: cleanSchoolYear,
         teacherLoadThreshold: thresholdNumber,
       })
-      setSuccess(`${result.establishment.name} cree.`)
+      if (shouldInviteAdmin && auth.session?.access_token) {
+        await inviteUserToEstablishment({
+          data: {
+            accessToken: auth.session.access_token,
+            establishmentId: result.establishment.id,
+            email: adminEmail,
+            firstName: adminFirstName,
+            lastName: adminLastName,
+            role: adminRole,
+          },
+        })
+      }
+
+      setSuccess(
+        shouldInviteAdmin
+          ? `${result.establishment.name} cree, invitation envoyee.`
+          : `${result.establishment.name} cree.`,
+      )
       window.setTimeout(() => {
         navigate({ to: '/superadmin/establishments' })
       }, 650)
@@ -182,7 +216,7 @@ function NewEstablishmentSupabase() {
                 Identite de l'etablissement
               </CardTitle>
               <CardDescription>
-                Creez le tenant. L'invitation du DDFPT/admin sera branchee dans le sprint onboarding.
+                Creez le tenant et invitez le premier DDFPT ou administrateur de l'etablissement.
               </CardDescription>
             </div>
           </CardHeader>
@@ -245,6 +279,64 @@ function NewEstablishmentSupabase() {
                 />
               </div>
             </div>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Premier admin / DDFPT</CardTitle>
+              <CardDescription>
+                Optionnel mais recommande : invitez tout de suite la personne qui gerera le tenant.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="adminFirstName">Prenom</Label>
+                <Input
+                  id="adminFirstName"
+                  value={adminFirstName}
+                  onChange={(event) => setAdminFirstName(event.target.value)}
+                  placeholder="Nadia"
+                />
+              </div>
+              <div>
+                <Label htmlFor="adminLastName">Nom</Label>
+                <Input
+                  id="adminLastName"
+                  value={adminLastName}
+                  onChange={(event) => setAdminLastName(event.target.value)}
+                  placeholder="Martin"
+                />
+              </div>
+              <div>
+                <Label htmlFor="adminEmail">Email</Label>
+                <Input
+                  id="adminEmail"
+                  type="email"
+                  value={adminEmail}
+                  onChange={(event) => setAdminEmail(event.target.value)}
+                  placeholder="prenom.nom@ac-academie.fr"
+                />
+              </div>
+              <div>
+                <Label htmlFor="adminRole">Role initial</Label>
+                <select
+                  id="adminRole"
+                  value={adminRole}
+                  onChange={(event) => setAdminRole(event.target.value as InviteUserRole)}
+                  className="w-full bg-white border border-[var(--color-border-strong)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-500)]/30 focus:border-[var(--color-brand-500)]"
+                >
+                  <option value="ddfpt">DDFPT</option>
+                  <option value="admin">Admin etablissement</option>
+                </select>
+              </div>
+            </div>
+            <FieldHint>
+              L'invitation utilise Supabase Auth. Si l'email est vide, seul le tenant sera cree.
+            </FieldHint>
           </CardBody>
         </Card>
 

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
 import { EmptyState } from '@/components/EmptyState'
+import { InviteUserForm } from '@/components/InviteUserForm'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -273,6 +274,20 @@ function EstablishmentDetailLayout({ detail }: { detail: EstablishmentDetail }) 
           </div>
 
           <aside className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle icon={<Users className="w-4 h-4" />}>Inviter un compte</CardTitle>
+              </CardHeader>
+              <CardBody>
+                <InviteUserForm
+                  establishmentId={establishment.id}
+                  allowedRoles={['admin', 'ddfpt', 'principal', 'referent', 'eleve']}
+                  defaultRole="ddfpt"
+                  compact
+                />
+              </CardBody>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle icon={<Users className="w-4 h-4" />}>Utilisateurs</CardTitle>
