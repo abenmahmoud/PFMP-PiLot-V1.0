@@ -52,6 +52,7 @@ const NAV: NavItem[] = [
 
   { to: '/superadmin', label: 'Vue globale', icon: Shield, roles: ['superadmin'], section: 'super' },
   { to: '/superadmin/establishments', label: 'Établissements', icon: Briefcase, roles: ['superadmin'], section: 'super' },
+  { to: '/superadmin/users', label: 'Utilisateurs', icon: UserCog, roles: ['superadmin'], section: 'super' },
   { to: '/superadmin/ai', label: 'Assistant IA', icon: Sparkles, roles: ['superadmin'], section: 'super' },
 ]
 
