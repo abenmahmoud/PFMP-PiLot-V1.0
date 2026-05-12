@@ -159,10 +159,10 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
 async function fetchSetupChecklist(scope?: string | null): Promise<DashboardSetupChecklist> {
   const sb = getSupabase()
-  const establishmentQuery = applyEstablishmentScope(
-    sb.from('establishments').select('city,uai').order('created_at').limit(1),
-    scope,
-  )
+  // NOTE: la table `establishments` n'a pas de colonne `establishment_id`. Sa PK est `id`.
+  // On ne peut donc PAS utiliser applyEstablishmentScope ici : il faut filtrer par `id`.
+  const establishmentBase = sb.from('establishments').select('city,uai').order('created_at').limit(1)
+  const establishmentQuery = scope ? establishmentBase.eq('id', scope) : establishmentBase
 
   const [establishmentResult, classesCount, studentsCount, periodsCount] = await Promise.all([
     establishmentQuery.maybeSingle(),
