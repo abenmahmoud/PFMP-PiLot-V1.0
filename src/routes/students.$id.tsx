@@ -3,15 +3,19 @@ import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
+  Ban,
   Building2,
   CalendarRange,
   ClipboardCheck,
   FileText,
+  KeyRound,
   Mail,
   MapPin,
   Phone,
   Plus,
+  RefreshCw,
 } from 'lucide-react'
+import { QRCodeCanvas } from 'qrcode.react'
 import { AppLayout } from '@/components/AppLayout'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -27,6 +31,11 @@ import {
   fetchStudentById,
   type StudentDetail,
 } from '@/services/students'
+import {
+  generateSingleStudentAccessCode,
+  revokeStudentAccessCode,
+  type GeneratedStudentCode,
+} from '@/server/studentAccessCodes.functions'
 import {
   alerts,
   classes,
@@ -53,6 +62,10 @@ function StudentDetailSupabase() {
   const [detail, setDetail] = useState<StudentDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const accessToken = auth.session?.access_token ?? ''
+  const [freshCode, setFreshCode] = useState<GeneratedStudentCode | null>(null)
+  const [codeLoading, setCodeLoading] = useState(false)
+  const [codeError, setCodeError] = useState<string | null>(null)
 
   useEffect(() => {
     if (auth.loading) return
@@ -80,6 +93,59 @@ function StudentDetailSupabase() {
       mounted = false
     }
   }, [auth.loading, auth.profile, id])
+
+  async function handleGenerateCode() {
+    if (!detail?.class?.id) return
+    setCodeLoading(true)
+    setCodeError(null)
+    setFreshCode(null)
+    try {
+      const result = await generateSingleStudentAccessCode({
+        data: {
+          accessToken,
+          classId: detail.class.id,
+          studentId: detail.student.id,
+        },
+      })
+      if (result.generatedCodes[0]) setFreshCode(result.generatedCodes[0])
+      const next = await fetchStudentById(id)
+      if (next) setDetail(next)
+    } catch (e) {
+      setCodeError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setCodeLoading(false)
+    }
+  }
+
+  async function handleRegenerateCode() {
+    const ok = window.confirm("Regenerer le code de cet eleve ? L'ancien sera revoque.")
+    if (!ok) return
+    await handleGenerateCode()
+  }
+
+  async function handleRevokeCode() {
+    if (!detail?.class?.id) return
+    const ok = window.confirm('Revoquer le code de cet eleve ?')
+    if (!ok) return
+    setCodeLoading(true)
+    setCodeError(null)
+    try {
+      await revokeStudentAccessCode({
+        data: {
+          accessToken,
+          classId: detail.class.id,
+          studentId: detail.student.id,
+        },
+      })
+      setFreshCode(null)
+      const next = await fetchStudentById(id)
+      if (next) setDetail(next)
+    } catch (e) {
+      setCodeError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setCodeLoading(false)
+    }
+  }
 
   if (auth.loading || loading) {
     return <BareDetailState title="Chargement de la fiche eleve" description="Lecture des donnees Supabase..." />
@@ -197,6 +263,17 @@ function StudentDetailSupabase() {
             )}
           </CardBody>
         </Card>
+
+        <StudentAccessCard
+          accessCode={detail.accessCode}
+          classId={detail.class?.id ?? null}
+          freshCode={freshCode}
+          codeLoading={codeLoading}
+          codeError={codeError}
+          onGenerateCode={handleGenerateCode}
+          onRegenerateCode={handleRegenerateCode}
+          onRevokeCode={handleRevokeCode}
+        />
 
         <Card>
           <CardHeader>
@@ -320,6 +397,18 @@ function StudentDetailDemo() {
           </CardBody>
         </Card>
 
+        <StudentAccessCard
+          accessCode={null}
+          classId={klass?.id ?? null}
+          freshCode={null}
+          codeLoading={false}
+          codeError={null}
+          onGenerateCode={() => undefined}
+          onRegenerateCode={() => undefined}
+          onRevokeCode={() => undefined}
+          actionsDisabled
+        />
+
         <Card>
           <CardHeader>
             <CardTitle>Alertes</CardTitle>
@@ -386,6 +475,133 @@ function StudentDetailDemo() {
         </Card>
       </div>
     </AppLayout>
+  )
+}
+
+function StudentAccessCard({
+  accessCode,
+  classId,
+  freshCode,
+  codeLoading,
+  codeError,
+  onGenerateCode,
+  onRegenerateCode,
+  onRevokeCode,
+  actionsDisabled = false,
+}: {
+  accessCode: StudentDetail['accessCode']
+  classId: string | null
+  freshCode: GeneratedStudentCode | null
+  codeLoading: boolean
+  codeError: string | null
+  onGenerateCode: () => void | Promise<void>
+  onRegenerateCode: () => void | Promise<void>
+  onRevokeCode: () => void | Promise<void>
+  actionsDisabled?: boolean
+}) {
+  const hasActiveCode = accessCode?.status === 'active'
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle icon={<KeyRound className="w-4 h-4" />}>Acces eleve</CardTitle>
+        {hasActiveCode ? (
+          <Badge tone="success" dot>
+            Actif ...{accessCode.code_hint}
+          </Badge>
+        ) : (
+          <Badge tone="warning">Aucun code</Badge>
+        )}
+      </CardHeader>
+      <CardBody className="space-y-4">
+        {codeError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {codeError}
+          </div>
+        )}
+
+        {freshCode && (
+          <div className="rounded-lg border border-[var(--color-brand-100)] bg-[var(--color-brand-50)] p-4">
+            <p className="text-xs font-semibold text-[var(--color-brand-700)] mb-2">
+              Code a remettre a l'eleve - visible une seule fois
+            </p>
+            <div className="flex items-start gap-4">
+              <QRCodeCanvas value={freshCode.qrPayload} size={72} level="M" marginSize={1} />
+              <div>
+                <p className="font-mono text-lg font-semibold tracking-wide select-all text-[var(--color-text)]">
+                  {freshCode.code}
+                </p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                  Scannez le QR ou saisissez le code sur pfmp-pilot.fr/eleve
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasActiveCode && !freshCode && (
+          <div className="text-sm text-[var(--color-text-muted)]">
+            Code actif depuis le {formatDate(accessCode.created_at)}. Se termine par{' '}
+            <span className="font-mono font-semibold">...{accessCode.code_hint}</span>.
+          </div>
+        )}
+
+        {!hasActiveCode && !freshCode && (
+          <p className="text-sm text-[var(--color-text-muted)]">
+            {classId
+              ? 'Aucun code genere pour cet eleve.'
+              : 'Eleve sans classe - assignez une classe avant de generer un code.'}
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {!hasActiveCode && classId && (
+            <Button
+              type="button"
+              size="sm"
+              iconLeft={<KeyRound className="w-3.5 h-3.5" />}
+              onClick={onGenerateCode}
+              disabled={codeLoading || actionsDisabled}
+            >
+              {codeLoading ? 'Generation...' : 'Generer un code'}
+            </Button>
+          )}
+          {hasActiveCode && (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                iconLeft={<RefreshCw className="w-3.5 h-3.5" />}
+                onClick={onRegenerateCode}
+                disabled={codeLoading || actionsDisabled}
+              >
+                {codeLoading ? '...' : 'Regenerer'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                iconLeft={<Ban className="w-3.5 h-3.5" />}
+                onClick={onRevokeCode}
+                disabled={codeLoading || actionsDisabled}
+              >
+                Revoquer
+              </Button>
+            </>
+          )}
+          {classId && (
+            <Link
+              to="/classes/$id"
+              params={{ id: classId }}
+              className="inline-flex h-8 items-center px-3 rounded-md text-xs font-medium text-[var(--color-brand-700)] bg-[var(--color-brand-50)] hover:bg-[var(--color-brand-100)]"
+            >
+              Voir toute la classe
+            </Link>
+          )}
+        </div>
+      </CardBody>
+    </Card>
   )
 }
 

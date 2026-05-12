@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Plus, Users } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -16,6 +16,9 @@ export const Route = createFileRoute('/classes')({ component: ClassesPage })
 const LOAD_TIMEOUT_MS = 12000
 
 function ClassesPage() {
+  const matchRoute = useMatchRoute()
+  const isOnChild = matchRoute({ to: '/classes/$id', fuzzy: true })
+  if (isOnChild) return <Outlet />
   if (isDemoMode()) return <ClassesDemo />
   return <ClassesSupabase />
 }
