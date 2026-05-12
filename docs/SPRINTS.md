@@ -53,8 +53,8 @@
 | P1.2 (hors-roadmap) | Invitations DDFPT + email FR | — | [#24](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/24) (`7a0582a`) | ✅ MERGÉ (`sprints/P1.2_pr_audit.md` GO) |
 | P1.2.1 (hors-roadmap) | Identité tenant éditable + SetupChecklist | `briefs/P1.2.1_tenant_identity_setup_checklist.md` ✅ | [#25](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/25) (`3cac9d1`) | ✅ MERGÉ (`sprints/P1.2.1_P1.2.2_P1.3_audit_claude.md` GO) |
 | P1.2.2 (hors-roadmap) | Lien tenant + QR code établissement | `briefs/P1.2.2_tenant_access_link_qr.md` ✅ | [#26](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/26) + [#28](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/28) (`977418e`) | ✅ MERGÉ (`sprints/P1.2.1_P1.2.2_P1.3_audit_claude.md` GO) |
-| P1.3 | Import SIECLE classes + élèves | `briefs/P1.3_siecle_import_classes_students.md` ✅ | — | 🔵 prêt |
-| P1.4 | Codes élèves par classe | `briefs/P1.4_student_codes_by_class.md` ✅ | — | 🔵 prêt |
+| P1.3 | Import SIECLE classes + élèves | `briefs/P1.3_siecle_import_classes_students.md` ✅ | [#30](https://github.com/abenmahmoud/PFMP-PiLot-V1.0/pull/30) (`40b5def`) | ✅ MERGÉ (`sprints/P1.3_audit_claude.md` GO) |
+| P1.4 | Codes élèves par classe | `briefs/P1.4_student_codes_by_class.md` ✅ | — | 🟡 EN COURS (`sprints/P1.4_plan.md`) |
 | P1.5 | Portail entrée Administration / Enseignant / Élève | — | — | 🔵 à briefer |
 | P1.6 | Import XLSX entreprises | `briefs/P1.3_import_companies.md` ✅ | — | 🔵 prêt à renommer |
 | P1.7 | Affectations PP → référents | `briefs/P1.4_assignments.md` ✅ | — | 🔵 prêt à renommer |
