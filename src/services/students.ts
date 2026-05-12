@@ -38,6 +38,12 @@ export interface StudentDetail {
   visits: VisitRow[]
   documents: DocumentRow[]
   alerts: AlertRow[]
+  accessCode: {
+    id: string
+    code_hint: string
+    status: string
+    created_at: string
+  } | null
 }
 
 export async function fetchStudents(filters: StudentFilters = {}): Promise<StudentListItem[]> {
@@ -138,6 +144,7 @@ export async function fetchStudentById(id: string): Promise<StudentDetail | null
     visitsResult,
     documentsResult,
     alertsResult,
+    accessCodeResult,
   ] = await Promise.all([
     student.class_id
       ? sb.from('classes').select('*').eq('id', student.class_id).maybeSingle()
@@ -164,6 +171,12 @@ export async function fetchStudentById(id: string): Promise<StudentDetail | null
       .eq('related_entity_id', student.id)
       .eq('resolved', false)
       .order('created_at', { ascending: false }),
+    sb
+      .from('student_access_codes')
+      .select('id, code_hint, status, created_at')
+      .eq('student_id', student.id)
+      .eq('status', 'active')
+      .maybeSingle(),
   ])
 
   if (classResult.error) throw new Error(`fetchStudentById class: ${classResult.error.message}`)
@@ -175,6 +188,9 @@ export async function fetchStudentById(id: string): Promise<StudentDetail | null
     throw new Error(`fetchStudentById documents: ${documentsResult.error.message}`)
   }
   if (alertsResult.error) throw new Error(`fetchStudentById alerts: ${alertsResult.error.message}`)
+  if (accessCodeResult.error) {
+    console.warn('fetchStudentById accessCode:', accessCodeResult.error.message)
+  }
 
   const placements = (placementsResult.data as PlacementRow[]) ?? []
   const placement = placements[0] ?? null
@@ -209,6 +225,12 @@ export async function fetchStudentById(id: string): Promise<StudentDetail | null
     visits: (visitsResult.data as VisitRow[]) ?? [],
     documents: (documentsResult.data as DocumentRow[]) ?? [],
     alerts: (alertsResult.data as AlertRow[]) ?? [],
+    accessCode: (accessCodeResult.data as {
+      id: string
+      code_hint: string
+      status: string
+      created_at: string
+    } | null) ?? null,
   }
 }
 
