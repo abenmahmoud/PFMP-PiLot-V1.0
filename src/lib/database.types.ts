@@ -71,6 +71,7 @@ export interface ProfileRow {
   email: string
   role: UserRole
   avatar_color: string | null
+  archived_at: string | null
   created_at: string
   updated_at: string
 }
