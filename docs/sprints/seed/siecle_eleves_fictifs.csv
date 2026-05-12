@@ -1,0 +1,16 @@
+NOM_ELEVE;PRENOM_ELEVE;CODE_MEF;LIBELLE_MEF;DIVISION;EMAIL_ELEVE
+MARTIN;Lina;24720001;2nde Bac Pro Maintenance des vehicules;2MVA;lina.martin@example.com
+DURAND;Nolan;24720001;2nde Bac Pro Maintenance des vehicules;2MVA;nolan.durand@example.com
+BERNARD;Ines;24720001;2nde Bac Pro Maintenance des vehicules;2MVA;ines.bernard@example.com
+PETIT;Adam;24720001;2nde Bac Pro Maintenance des vehicules;2MVA;adam.petit@example.com
+ROBERT;Sofia;24720001;2nde Bac Pro Maintenance des vehicules;2MVA;sofia.robert@example.com
+RICHARD;Yan;24733002;1ere Bac Pro Maintenance des systemes;1MSPC;yan.richard@example.com
+MOREAU;Nour;24733002;1ere Bac Pro Maintenance des systemes;1MSPC;nour.moreau@example.com
+SIMON;Elias;24733002;1ere Bac Pro Maintenance des systemes;1MSPC;elias.simon@example.com
+LAURENT;Maya;24733002;1ere Bac Pro Maintenance des systemes;1MSPC;maya.laurent@example.com
+MICHEL;Ilyes;24733002;1ere Bac Pro Maintenance des systemes;1MSPC;ilyes.michel@example.com
+LEFEBVRE;Amina;50022111;CAP Equipier polyvalent du commerce;CAP1EPC;amina.lefebvre@example.com
+LEROY;Samy;50022111;CAP Equipier polyvalent du commerce;CAP1EPC;samy.leroy@example.com
+ROUX;Camille;50022111;CAP Equipier polyvalent du commerce;CAP1EPC;camille.roux@example.com
+DAVID;Noah;50022111;CAP Equipier polyvalent du commerce;CAP1EPC;noah.david@example.com
+GARCIA;Lea;50022111;CAP Equipier polyvalent du commerce;CAP1EPC;lea.garcia@example.com
