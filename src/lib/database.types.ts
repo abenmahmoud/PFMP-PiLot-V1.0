@@ -41,6 +41,7 @@ export type ContactType = 'visit' | 'call' | 'video' | 'email'
 export type AlertLevel = 'none' | 'vigilance' | 'problem' | 'urgent'
 export type DocumentStatusEnum = 'missing' | 'draft' | 'validated' | 'archived'
 export type EstablishmentStatus = 'active' | 'trial' | 'suspended' | 'archived'
+export type StudentAccessCodeStatus = 'active' | 'revoked' | 'expired'
 
 // ----------------------------------------------------------------------------
 // Row types — extraits dans des interfaces nommées pour éviter
@@ -99,6 +100,21 @@ export interface StudentRow {
   formation: string | null
   notes: string | null
   archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface StudentAccessCodeRow {
+  id: string
+  establishment_id: string
+  student_id: string
+  code_hash: string
+  code_hint: string
+  status: StudentAccessCodeStatus
+  expires_at: string | null
+  last_used_at: string | null
+  created_by: string | null
+  revoked_at: string | null
   created_at: string
   updated_at: string
 }

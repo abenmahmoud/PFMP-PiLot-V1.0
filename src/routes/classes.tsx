@@ -134,7 +134,7 @@ function ClassesDemo() {
                   label="Prof. principal"
                   value={principal ? `${principal.firstName} ${principal.lastName}` : '-'}
                 />
-                <StudentsLink />
+                <ClassLinks classId={klass.id} />
               </CardBody>
             </Card>
           )
@@ -168,7 +168,7 @@ function ClassCard({ item }: { item: ClassListItem }) {
               : 'Non renseigne'
           }
         />
-        <StudentsLink />
+        <ClassLinks classId={item.class.id} />
       </CardBody>
     </Card>
   )
@@ -183,14 +183,23 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-function StudentsLink() {
+function ClassLinks({ classId }: { classId: string }) {
   return (
-    <Link
-      to="/students"
-      className="inline-flex h-8 items-center px-3 mt-1 rounded-md text-xs font-medium text-[var(--color-brand-700)] bg-[var(--color-brand-50)] hover:bg-[var(--color-brand-100)]"
-    >
-      Voir les eleves
-    </Link>
+    <div className="flex flex-wrap gap-2 pt-1">
+      <Link
+        to="/classes/$id"
+        params={{ id: classId }}
+        className="inline-flex h-8 items-center px-3 rounded-md text-xs font-medium text-white bg-[var(--color-brand)] hover:bg-[var(--color-brand-700)]"
+      >
+        Codes eleves
+      </Link>
+      <Link
+        to="/students"
+        className="inline-flex h-8 items-center px-3 rounded-md text-xs font-medium text-[var(--color-brand-700)] bg-[var(--color-brand-50)] hover:bg-[var(--color-brand-100)]"
+      >
+        Voir les eleves
+      </Link>
+    </div>
   )
 }
 
