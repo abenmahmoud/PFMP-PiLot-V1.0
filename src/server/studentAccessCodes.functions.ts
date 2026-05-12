@@ -318,13 +318,17 @@ function buildClassStudentAccessResult(
   codes: StudentAccessCodeRow[],
 ): ClassStudentAccessResult {
   const latestByStudent = latestCodeByStudent(codes)
-  return {
+  return sanitizeForSeroval({
     class: klass,
     students: students.map((student) => ({
       student,
       accessCode: toAccessStatus(latestByStudent.get(student.id) ?? null),
     })),
-  }
+  })
+}
+
+function sanitizeForSeroval<T>(data: T): T {
+  return JSON.parse(JSON.stringify(data, (_key, value) => (value === undefined ? null : value))) as T
 }
 
 function latestCodeByStudent(codes: StudentAccessCodeRow[]): Map<string, StudentAccessCodeRow> {
