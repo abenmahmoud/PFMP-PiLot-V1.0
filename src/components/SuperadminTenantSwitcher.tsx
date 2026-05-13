@@ -59,7 +59,7 @@ export function SuperadminTenantSwitcher() {
         ))}
       </select>
       {active && (
-        <Link to="/dashboard" className="font-medium underline underline-offset-2">
+        <Link to="/admin/dashboard" className="font-medium underline underline-offset-2">
           Ouvrir
         </Link>
       )}
