@@ -78,7 +78,7 @@ function StudentDetailSupabase() {
     setLoading(true)
     setError(null)
 
-    fetchStudentById(id)
+    fetchStudentById(id, auth.profile)
       .then((nextDetail) => {
         if (mounted) setDetail(nextDetail)
       })
@@ -108,7 +108,7 @@ function StudentDetailSupabase() {
         },
       })
       if (result.generatedCodes[0]) setFreshCode(result.generatedCodes[0])
-      const next = await fetchStudentById(id)
+      const next = await fetchStudentById(id, auth.profile)
       if (next) setDetail(next)
     } catch (e) {
       setCodeError(e instanceof Error ? e.message : String(e))
@@ -138,7 +138,7 @@ function StudentDetailSupabase() {
         },
       })
       setFreshCode(null)
-      const next = await fetchStudentById(id)
+      const next = await fetchStudentById(id, auth.profile)
       if (next) setDetail(next)
     } catch (e) {
       setCodeError(e instanceof Error ? e.message : String(e))

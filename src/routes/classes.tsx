@@ -40,7 +40,7 @@ function ClassesSupabase() {
     setLoading(true)
     setError(null)
 
-    withTimeout(fetchClasses(), LOAD_TIMEOUT_MS, 'Lecture Supabase trop longue')
+    withTimeout(fetchClasses(auth.profile), LOAD_TIMEOUT_MS, 'Lecture Supabase trop longue')
       .then((nextItems) => {
         if (mounted) setItems(nextItems)
       })

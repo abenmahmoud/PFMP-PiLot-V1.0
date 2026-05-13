@@ -61,7 +61,7 @@ function StudentsSupabase() {
       classId: classId === 'all' ? undefined : classId,
       stageStatus: stage === 'all' ? undefined : stage,
       referentId: referentId === 'all' ? undefined : referentId,
-    })
+    }, auth.profile)
       .then((nextRows) => {
         if (mounted) setRows(nextRows)
       })

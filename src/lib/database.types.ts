@@ -99,6 +99,7 @@ export interface StudentRow {
   phone: string | null
   formation: string | null
   notes: string | null
+  referent_id: string | null
   archived_at: string | null
   created_at: string
   updated_at: string

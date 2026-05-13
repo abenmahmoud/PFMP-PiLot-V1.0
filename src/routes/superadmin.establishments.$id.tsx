@@ -284,7 +284,7 @@ function EstablishmentDetailLayout({ detail }: { detail: EstablishmentDetail }) 
               <CardBody>
                 <InviteUserForm
                   establishmentId={establishment.id}
-                  allowedRoles={['admin', 'ddfpt', 'principal', 'referent', 'eleve']}
+                  allowedRoles={['admin', 'ddfpt', 'principal', 'referent', 'tuteur', 'eleve']}
                   defaultRole="ddfpt"
                   compact
                 />
