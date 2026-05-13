@@ -172,6 +172,21 @@ export function canEditVisit(
 }
 
 /** Peut-il créer / modifier une entreprise ? */
+export function canManageVisit(
+  s: SessionContext,
+  visit: { establishmentId: string; studentId: string; referentId?: string | null; status: string },
+): boolean {
+  if (isSuperadmin(s)) return true
+  if (s.establishmentId !== visit.establishmentId) return false
+  if (isEstablishmentAdmin(s)) return true
+  if (s.role === 'referent' && (visit.referentId === s.userId || isReferentOf(s, visit.studentId))) return true
+  return false
+}
+
+export function canFlagVisit(s: SessionContext): boolean {
+  return s.role === 'superadmin' || s.role === 'admin' || s.role === 'ddfpt' || s.role === 'principal' || s.role === 'referent'
+}
+
 export function canWriteCompanies(s: SessionContext): boolean {
   return isSuperadmin(s) || isEstablishmentAdmin(s)
 }
