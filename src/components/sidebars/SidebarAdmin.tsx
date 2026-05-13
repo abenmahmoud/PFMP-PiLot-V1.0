@@ -5,6 +5,7 @@ import {
   Briefcase,
   Building2,
   Calendar,
+  ClipboardList,
   Download,
   FileText,
   GraduationCap,
@@ -15,6 +16,7 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Stethoscope,
   Upload,
   UserCog,
   Users,
@@ -51,9 +53,11 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/activity', label: 'Activite', icon: History, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
   { to: '/admin/settings', label: 'Parametres', icon: Settings, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
 
-  { to: '/superadmin', label: 'Vue globale', icon: Shield, roles: ['superadmin'], section: 'super' },
+  { to: '/superadmin/dashboard', label: 'Dashboard groupe', icon: Shield, roles: ['superadmin'], section: 'super' },
   { to: '/superadmin/establishments', label: 'Etablissements', icon: Briefcase, roles: ['superadmin'], section: 'super' },
   { to: '/superadmin/users', label: 'Utilisateurs globaux', icon: UserCog, roles: ['superadmin'], section: 'super' },
+  { to: '/superadmin/audit', label: 'Audit cross-tenant', icon: ClipboardList, roles: ['superadmin'], section: 'super' },
+  { to: '/superadmin/system-health', label: 'Sante systeme', icon: Stethoscope, roles: ['superadmin'], section: 'super' },
   { to: '/superadmin/ai', label: 'Assistant IA', icon: Sparkles, roles: ['superadmin'], section: 'super' },
 ]
 

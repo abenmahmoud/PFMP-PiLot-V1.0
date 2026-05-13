@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Database,
   Globe2,
+  LogIn,
   Settings,
   Users,
 } from 'lucide-react'
@@ -18,7 +19,8 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAuth } from '@/lib/AuthProvider'
-import { isDemoMode } from '@/lib/supabase'
+import { getSupabase, isDemoMode } from '@/lib/supabase'
+import { startSuperadminImpersonation } from '@/server/superadminDashboard.functions'
 import {
   fetchEstablishmentDetail,
   type EstablishmentDetail,
@@ -139,7 +141,7 @@ function EstablishmentSupabaseDetail({ id }: { id: string }) {
     )
   }
 
-  return <EstablishmentDetailLayout detail={detail} />
+  return <EstablishmentDetailLayout detail={detail} accessToken={auth.session?.access_token ?? ''} />
 }
 
 function EstablishmentDemoDetail({ id }: { id: string }) {
@@ -194,19 +196,68 @@ function EstablishmentDemoDetail({ id }: { id: string }) {
     },
   }
 
-  return <EstablishmentDetailLayout detail={detail} />
+  return <EstablishmentDetailLayout detail={detail} accessToken="" />
 }
 
-function EstablishmentDetailLayout({ detail }: { detail: EstablishmentDetail }) {
+function EstablishmentDetailLayout({
+  detail,
+  accessToken,
+}: {
+  detail: EstablishmentDetail
+  accessToken: string
+}) {
   const { establishment, settings, metrics, profiles, periods, auditLogs } = detail
+  const [impersonationLoading, setImpersonationLoading] = useState(false)
+  const [impersonationError, setImpersonationError] = useState<string | null>(null)
+
+  async function handleImpersonation() {
+    if (!accessToken) return
+    setImpersonationLoading(true)
+    setImpersonationError(null)
+    try {
+      const result = await startSuperadminImpersonation({
+        data: { accessToken, establishmentId: establishment.id },
+      })
+      const sb = getSupabase()
+      const { error } = await sb.auth.updateUser({
+        data: {
+          active_establishment_id: result.establishmentId,
+          active_establishment_expires_at: result.expiresAt,
+        },
+      })
+      if (error) throw new Error(error.message)
+      await sb.auth.refreshSession()
+      window.location.href = result.redirectTo
+    } catch (e) {
+      setImpersonationError(e instanceof Error ? e.message : String(e))
+      setImpersonationLoading(false)
+    }
+  }
 
   return (
     <AppLayout
       title={establishment.name}
       subtitle="Vue Superadmin - detail du tenant"
-      actions={<BackToEstablishments />}
+      actions={
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            iconLeft={<LogIn className="w-4 h-4" />}
+            onClick={handleImpersonation}
+            disabled={!accessToken || impersonationLoading}
+          >
+            {impersonationLoading ? 'Ouverture...' : 'Se connecter en tant que'}
+          </Button>
+          <BackToEstablishments />
+        </div>
+      }
     >
       <div className="space-y-5">
+        {impersonationError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {impersonationError}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={STATUS_TONES[establishment.status]} dot>
             {STATUS_LABELS[establishment.status]}

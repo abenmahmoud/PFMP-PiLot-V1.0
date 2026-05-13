@@ -21,6 +21,12 @@
   --color-brand-admin: #1e3a8a;
   --color-brand-prof: #15803d;
   --color-brand-eleve: #ea580c;
+  --color-brand-superadmin: #4c1d95;
+  --color-brand-superadmin-50: #f5f3ff;
+  --color-brand-superadmin-100: #ede9fe;
+  --color-brand-superadmin-500: #7c3aed;
+  --color-brand-superadmin-600: #6d28d9;
+  --color-brand-superadmin-700: #5b21b6;
 
   --color-success: #16a34a;
   --color-success-bg: #dcfce7;

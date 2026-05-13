@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/EmptyState'
 import { useAuth } from '@/lib/AuthProvider'
 import { isDemoMode } from '@/lib/supabase'
+import { setEstablishmentActive } from '@/server/superadminDashboard.functions'
 import {
   fetchEstablishmentsList,
   type EstablishmentListItem,
@@ -65,6 +66,7 @@ function EstablishmentsSupabase() {
   const [error, setError] = useState<string | null>(null)
   const [authTimedOut, setAuthTimedOut] = useState(false)
   const [query, setQuery] = useState('')
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!auth.loading) {
@@ -125,6 +127,33 @@ function EstablishmentsSupabase() {
         </Button>
       </Link>
     ),
+  }
+
+  async function toggleActive(item: EstablishmentListItem) {
+    const accessToken = auth.session?.access_token
+    if (!accessToken) return
+    setUpdatingId(item.establishment.id)
+    setError(null)
+    try {
+      await setEstablishmentActive({
+        data: {
+          accessToken,
+          establishmentId: item.establishment.id,
+          active: !item.establishment.active,
+        },
+      })
+      setItems((current) =>
+        current.map((row) =>
+          row.establishment.id === item.establishment.id
+            ? { ...row, establishment: { ...row.establishment, active: !row.establishment.active } }
+            : row,
+        ),
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   if (auth.loading && !authTimedOut) {
@@ -319,6 +348,8 @@ function EstablishmentsSupabase() {
                       size="sm"
                       variant="ghost"
                       iconLeft={<Power className="w-3.5 h-3.5" />}
+                      onClick={() => toggleActive(r)}
+                      disabled={updatingId === r.establishment.id}
                     >
                       {r.establishment.active ? 'Désactiver' : 'Activer'}
                     </Button>
