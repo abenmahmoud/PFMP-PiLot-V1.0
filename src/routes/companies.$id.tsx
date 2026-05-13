@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useRouterState } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
@@ -30,7 +30,12 @@ import {
 } from '@/types'
 import type { CompanyRow, PlacementRow, StudentRow, TutorRow } from '@/lib/database.types'
 
-export const Route = createFileRoute('/companies/$id')({ component: CompanyDetailPage })
+export const Route = createFileRoute('/companies/$id')({
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/admin/companies/$id', params })
+  },
+  component: CompanyDetailPage,
+})
 
 const PROFESSIONAL_FAMILIES = Object.keys(PROFESSIONAL_FAMILY_LABELS) as ProfessionalFamily[]
 const COMPANY_STATUSES = Object.keys(COMPANY_STATUS_LABELS) as CompanyStatus[]
@@ -59,8 +64,12 @@ const RESPONSIVENESS_TONE: Record<TutorResponsiveness, BadgeTone> = {
   unknown: 'neutral',
 }
 
-function CompanyDetailPage() {
+export function CompanyDetailPage() {
   const { id } = Route.useParams()
+  return <CompanyDetailContent id={id} />
+}
+
+export function CompanyDetailContent({ id }: { id: string }) {
   if (isDemoMode()) return <CompanyDemoDetail id={id} />
   return <CompanySupabaseDetail id={id} />
 }
@@ -203,6 +212,8 @@ function CompanyDetailLayout({
   placements: linkedPlacements,
   stats,
 }: CompanyDetailLayoutProps) {
+  const router = useRouterState()
+  const listPath = router.location.pathname.startsWith('/prof') ? '/prof/companies' : '/admin/companies'
   const status = asCompanyStatus(company.status)
   const reliability = asCompanyReliability(company.reliability)
   const family = asProfessionalFamily(company.professional_family)
@@ -211,7 +222,7 @@ function CompanyDetailLayout({
     <AppLayout title={title} subtitle={subtitle}>
       <div className="mb-4">
         <Link
-          to="/companies"
+          to={listPath}
           className="inline-flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-brand-700)]"
         >
           <ArrowLeft className="w-4 h-4" />

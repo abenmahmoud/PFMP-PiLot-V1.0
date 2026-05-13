@@ -128,6 +128,19 @@ export async function signInWithPassword(
   return { ok: true }
 }
 
+export async function resetPasswordForEmail(
+  email: string,
+  redirectTo?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isDemoMode()) {
+    return { ok: false, error: 'Mode demo actif.' }
+  }
+  const supabase = getSupabase()
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 export async function signOut(): Promise<void> {
   if (isDemoMode()) return
   const supabase = getSupabase()

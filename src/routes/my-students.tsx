@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useRouterState } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
@@ -29,9 +29,14 @@ import {
 } from '@/services/myStudents'
 import { students, classes, pfmpPeriods } from '@/data/demo'
 
-export const Route = createFileRoute('/my-students')({ component: MyStudentsPage })
+export const Route = createFileRoute('/my-students')({
+  beforeLoad: () => {
+    throw redirect({ to: '/prof/my-students' })
+  },
+  component: MyStudentsPage,
+})
 
-function MyStudentsPage() {
+export function MyStudentsPage() {
   if (isDemoMode()) return <MyStudentsDemo />
   return <MyStudentsSupabase />
 }
@@ -302,6 +307,8 @@ function Filters({
 }
 
 function MyStudentSupabaseCard({ card }: { card: MyStudentCard }) {
+  const router = useRouterState()
+  const isProfPortal = router.location.pathname.startsWith('/prof')
   const mapUrl = card.companyAddress
     ? `https://maps.google.com/?q=${encodeURIComponent(card.companyAddress)}`
     : null
@@ -317,7 +324,7 @@ function MyStudentSupabaseCard({ card }: { card: MyStudentCard }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <Link
-                to="/students/$id"
+                to={isProfPortal ? '/prof/students/$id' : '/admin/students/$id'}
                 params={{ id: card.studentId }}
                 className="font-semibold text-[var(--color-text)] hover:text-[var(--color-brand-700)]"
               >
@@ -359,7 +366,7 @@ function MyStudentSupabaseCard({ card }: { card: MyStudentCard }) {
             label="Appeler"
           />
           <Link
-            to={card.placementId ? '/placements/$id' : '/students/$id'}
+            to={card.placementId ? '/placements/$id' : isProfPortal ? '/prof/students/$id' : '/admin/students/$id'}
             params={{ id: card.placementId ?? card.studentId }}
             className="min-h-11 inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-white px-3 text-sm font-medium hover:bg-[var(--color-muted)]"
           >

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Plus, Users } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -16,7 +16,12 @@ import {
 import type { StageStatus } from '@/lib/database.types'
 import { classes, companies, students, teachers } from '@/data/demo'
 
-export const Route = createFileRoute('/students/')({ component: StudentsPage })
+export const Route = createFileRoute('/students/')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/students' })
+  },
+  component: StudentsPage,
+})
 
 const STAGE_FILTERS: Array<{ value: 'all' | StageStatus; label: string }> = [
   { value: 'all', label: 'Tous les statuts' },
@@ -29,7 +34,7 @@ const STAGE_FILTERS: Array<{ value: 'all' | StageStatus; label: string }> = [
   { value: 'interrupted', label: 'Interrompu' },
 ]
 
-function StudentsPage() {
+export function StudentsPage() {
   if (isDemoMode()) return <StudentsDemo />
   return <StudentsSupabase />
 }

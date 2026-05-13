@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
+import { createFileRoute, Link, Navigate, Outlet, useMatchRoute, useRouterState } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Plus, Users } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -15,15 +15,18 @@ export const Route = createFileRoute('/classes')({ component: ClassesPage })
 
 const LOAD_TIMEOUT_MS = 12000
 
-function ClassesPage() {
+export function ClassesPage() {
   const matchRoute = useMatchRoute()
   const isOnChild = matchRoute({ to: '/classes/$id', fuzzy: true })
   if (isOnChild) return <Outlet />
+  if (!matchRoute({ to: '/admin/classes', fuzzy: true })) {
+    return <Navigate to="/admin/classes" replace />
+  }
   if (isDemoMode()) return <ClassesDemo />
   return <ClassesSupabase />
 }
 
-function ClassesSupabase() {
+export function ClassesSupabase() {
   const auth = useAuth()
   const [items, setItems] = useState<ClassListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -106,7 +109,7 @@ function ClassesSupabase() {
   )
 }
 
-function ClassesDemo() {
+export function ClassesDemo() {
   return (
     <AppLayout
       title="Classes"
@@ -187,17 +190,19 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function ClassLinks({ classId }: { classId: string }) {
+  const router = useRouterState()
+  const isProfPortal = router.location.pathname.startsWith('/prof')
   return (
     <div className="flex flex-wrap gap-2 pt-1">
       <Link
-        to="/classes/$id"
+        to={isProfPortal ? '/prof/classes/$id' : '/admin/classes/$id'}
         params={{ id: classId }}
         className="inline-flex h-8 items-center px-3 rounded-md text-xs font-medium text-white bg-[var(--color-brand)] hover:bg-[var(--color-brand-700)]"
       >
         Codes eleves
       </Link>
       <Link
-        to="/students"
+        to={isProfPortal ? '/prof/my-students' : '/admin/students'}
         className="inline-flex h-8 items-center px-3 rounded-md text-xs font-medium text-[var(--color-brand-700)] bg-[var(--color-brand-50)] hover:bg-[var(--color-brand-100)]"
       >
         Voir les eleves

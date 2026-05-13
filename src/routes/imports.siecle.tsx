@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useMemo, useRef, useState, type DragEvent } from 'react'
 import {
   AlertTriangle,
@@ -27,6 +27,9 @@ import {
 import { importSiecleData, type ImportSiecleResult } from '@/server/imports.functions'
 
 export const Route = createFileRoute('/imports/siecle')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/imports/siecle' })
+  },
   component: ImportSieclePage,
 })
 
@@ -34,7 +37,7 @@ const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 const ACCEPTED_EXTENSIONS = ['csv', 'xlsx', 'xls']
 const STEP_LABELS = ['Upload', 'Preview', 'Divisions', 'Confirmation'] as const
 
-function ImportSieclePage() {
+export function ImportSieclePage() {
   return (
     <AppLayout
       title="Import SIECLE"

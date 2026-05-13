@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import {
   Archive,
@@ -22,11 +22,16 @@ import { isDemoMode } from '@/lib/supabase'
 import { fetchActivity, type ActivityItem } from '@/services/activity'
 import { activityLog } from '@/data/demo'
 
-export const Route = createFileRoute('/activity')({ component: ActivityPage })
+export const Route = createFileRoute('/activity')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/activity' })
+  },
+  component: ActivityPage,
+})
 
 const LOAD_TIMEOUT_MS = 12000
 
-function ActivityPage() {
+export function ActivityPage() {
   if (isDemoMode()) return <ActivityDemo />
   return <ActivitySupabase />
 }

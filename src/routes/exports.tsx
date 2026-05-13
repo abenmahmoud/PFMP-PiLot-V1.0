@@ -1,10 +1,15 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { Download, FileSpreadsheet, FileText, Archive } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 
-export const Route = createFileRoute('/exports')({ component: ExportsPage })
+export const Route = createFileRoute('/exports')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/exports' })
+  },
+  component: ExportsPage,
+})
 
 const PRESETS = [
   { title: 'Élèves par classe', desc: 'Liste, statut stage, entreprise, référent.', icon: FileSpreadsheet, formats: ['CSV'] },
@@ -14,7 +19,7 @@ const PRESETS = [
   { title: 'Documents archivés', desc: 'Tous les comptes rendus et attestations.', icon: Archive, formats: ['ZIP (à venir)'] },
 ]
 
-function ExportsPage() {
+export function ExportsPage() {
   return (
     <AppLayout
       title="Exports"

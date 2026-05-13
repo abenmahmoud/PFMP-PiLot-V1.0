@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Download, Eye, FileText, Upload } from 'lucide-react'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -18,12 +18,17 @@ import {
 import { documents } from '@/data/demo'
 import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/types'
 
-export const Route = createFileRoute('/documents')({ component: DocumentsPage })
+export const Route = createFileRoute('/documents')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/documents' })
+  },
+  component: DocumentsPage,
+})
 
 const TABS: DocumentType[] = ['convention', 'attestation', 'visit_report', 'evaluation', 'other']
 const LOAD_TIMEOUT_MS = 12000
 
-function DocumentsPage() {
+export function DocumentsPage() {
   if (isDemoMode()) return <DocumentsDemo />
   return <DocumentsSupabase />
 }

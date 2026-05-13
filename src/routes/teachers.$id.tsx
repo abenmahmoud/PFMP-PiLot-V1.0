@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowLeft, Archive, Edit3, History, Users } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -12,10 +12,19 @@ import { ROLE_LABELS } from '@/lib/permissions'
 import { fetchTeacherDetail, type TeacherDetail } from '@/services/teachers'
 import { archiveTeacher, updateTeacher } from '@/server/teachers.functions'
 
-export const Route = createFileRoute('/teachers/$id')({ component: TeacherDetailPage })
+export const Route = createFileRoute('/teachers/$id')({
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/admin/teachers/$id', params })
+  },
+  component: TeacherDetailPage,
+})
 
-function TeacherDetailPage() {
+export function TeacherDetailPage() {
   const { id } = useParams({ from: '/teachers/$id' })
+  return <TeacherDetailContent id={id} />
+}
+
+export function TeacherDetailContent({ id }: { id: string }) {
   const auth = useAuth()
   const accessToken = auth.session?.access_token ?? ''
   const [detail, setDetail] = useState<TeacherDetail | null>(null)

@@ -4,7 +4,7 @@ import { signOut } from '@/lib/auth'
 export const Route = createFileRoute('/deconnexion')({
   loader: async () => {
     await signOut()
-    throw redirect({ to: '/login' })
+    throw redirect({ to: '/' })
   },
   component: () => null,
 })

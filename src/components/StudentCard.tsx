@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { Building2, MapPin, Calendar, ChevronRight } from 'lucide-react'
 import type { Student } from '@/types'
 import { StageStatusBadge } from './StatusBadge'
@@ -11,6 +11,8 @@ interface StudentCardProps {
 }
 
 export function StudentCard({ student, className }: StudentCardProps) {
+  const router = useRouterState()
+  const isProfPortal = router.location.pathname.startsWith('/prof')
   const klass = classes.find((c) => c.id === student.classId)
   const company = companies.find((c) => c.id === student.companyId)
   const period = pfmpPeriods.find((p) => p.id === student.periodId)
@@ -20,7 +22,7 @@ export function StudentCard({ student, className }: StudentCardProps) {
 
   return (
     <Link
-      to="/students/$id"
+      to={isProfPortal ? '/prof/students/$id' : '/admin/students/$id'}
       params={{ id: student.id }}
       className={cn(
         'card p-4 flex items-start gap-3 hover:border-[var(--color-brand-500)]/40 hover:shadow-[var(--shadow-soft)] transition-all',
