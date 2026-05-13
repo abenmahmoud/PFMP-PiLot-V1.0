@@ -3,20 +3,35 @@ import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
+  Archive,
   Building2,
   CalendarDays,
+  Edit3,
   Mail,
   MapPin,
   Phone,
+  Plus,
+  RotateCcw,
   Users,
 } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
+import { CompanyFormModal, type CompanyFormValues } from '@/components/companies/CompanyFormModal'
+import { TutorFormModal, type TutorFormValues } from '@/components/companies/TutorFormModal'
 import { EmptyState } from '@/components/EmptyState'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAuth } from '@/lib/AuthProvider'
 import { isDemoMode } from '@/lib/supabase'
 import { fetchCompanyById, type CompanyDetail } from '@/services/companies'
+import {
+  archiveCompany,
+  archiveTutor,
+  createTutor,
+  restoreCompany,
+  updateCompany,
+  updateTutor,
+} from '@/server/companies.functions'
 import { companies, placements, students, tutors } from '@/data/demo'
 import {
   COMPANY_RELIABILITY_LABELS,
@@ -76,9 +91,31 @@ export function CompanyDetailContent({ id }: { id: string }) {
 
 function CompanySupabaseDetail({ id }: { id: string }) {
   const auth = useAuth()
+  const router = useRouterState()
+  const accessToken = auth.session?.access_token ?? ''
+  const establishmentId = auth.activeEstablishmentId ?? auth.establishmentId
   const [detail, setDetail] = useState<CompanyDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [modalError, setModalError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [editingCompany, setEditingCompany] = useState(false)
+  const [editingTutor, setEditingTutor] = useState<TutorRow | null>(null)
+  const [showTutorCreate, setShowTutorCreate] = useState(false)
+
+  const canManage =
+    !router.location.pathname.startsWith('/prof') &&
+    (auth.profile?.role === 'admin' || auth.profile?.role === 'ddfpt' || auth.profile?.role === 'superadmin')
+
+  function reload() {
+    setLoading(true)
+    setError(null)
+    fetchCompanyById(id)
+      .then(setDetail)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false))
+  }
 
   useEffect(() => {
     if (auth.loading) return
@@ -87,25 +124,88 @@ function CompanySupabaseDetail({ id }: { id: string }) {
       return
     }
 
-    let mounted = true
-    setLoading(true)
-    setError(null)
-
-    fetchCompanyById(id)
-      .then((nextDetail) => {
-        if (mounted) setDetail(nextDetail)
-      })
-      .catch((e) => {
-        if (mounted) setError(e instanceof Error ? e.message : String(e))
-      })
-      .finally(() => {
-        if (mounted) setLoading(false)
-      })
-
-    return () => {
-      mounted = false
-    }
+    reload()
   }, [auth.loading, auth.profile, id])
+
+  async function saveCompany(values: CompanyFormValues) {
+    if (!detail) return
+    setSubmitting(true)
+    setModalError(null)
+    try {
+      const { establishmentId: _ignored, ...data } = values
+      await updateCompany({ data: { accessToken, establishmentId, companyId: detail.company.id, data } })
+      setNotice('Entreprise mise a jour.')
+      setEditingCompany(false)
+      reload()
+    } catch (e) {
+      setModalError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function toggleArchiveCompany() {
+    if (!detail) return
+    const isArchived = Boolean(detail.company.archived_at)
+    const ok = window.confirm(
+      isArchived ? `Restaurer ${detail.company.name} ?` : `Archiver ${detail.company.name} ?`,
+    )
+    if (!ok) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      if (isArchived) {
+        await restoreCompany({ data: { accessToken, establishmentId, companyId: detail.company.id } })
+        setNotice('Entreprise restauree.')
+      } else {
+        await archiveCompany({ data: { accessToken, establishmentId, companyId: detail.company.id } })
+        setNotice('Entreprise archivee.')
+      }
+      reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function saveTutor(values: TutorFormValues) {
+    if (!detail) return
+    setSubmitting(true)
+    setModalError(null)
+    try {
+      if (editingTutor) {
+        await updateTutor({ data: { accessToken, establishmentId, tutorId: editingTutor.id, data: values } })
+        setNotice('Tuteur mis a jour.')
+      } else {
+        await createTutor({ data: { accessToken, establishmentId, companyId: detail.company.id, data: values } })
+        setNotice('Tuteur ajoute.')
+      }
+      setEditingTutor(null)
+      setShowTutorCreate(false)
+      reload()
+    } catch (e) {
+      setModalError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function archiveTutorRow(tutor: TutorRow) {
+    const ok = window.confirm(`Archiver ${tutor.first_name} ${tutor.last_name} ?`)
+    if (!ok) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await archiveTutor({ data: { accessToken, establishmentId, tutorId: tutor.id } })
+      setNotice('Tuteur archive.')
+      reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   if (auth.loading || loading) return <CompanySkeleton />
 
@@ -143,14 +243,50 @@ function CompanySupabaseDetail({ id }: { id: string }) {
   }
 
   return (
-    <CompanyDetailLayout
-      title={detail.company.name}
-      subtitle="Fiche entreprise - donnees Supabase"
-      company={detail.company}
-      tutors={detail.tutors}
-      placements={detail.placements}
-      stats={detail.stats}
-    />
+    <>
+      <CompanyDetailLayout
+        title={detail.company.name}
+        subtitle="Fiche entreprise - donnees Supabase"
+        company={detail.company}
+        tutors={detail.tutors}
+        placements={detail.placements}
+        stats={detail.stats}
+        canManage={canManage}
+        submitting={submitting}
+        notice={notice}
+        onEditCompany={() => setEditingCompany(true)}
+        onToggleArchiveCompany={toggleArchiveCompany}
+        onAddTutor={() => setShowTutorCreate(true)}
+        onEditTutor={setEditingTutor}
+        onArchiveTutor={archiveTutorRow}
+      />
+      {editingCompany && (
+        <CompanyFormModal
+          company={detail.company}
+          establishmentId={establishmentId}
+          submitting={submitting}
+          error={modalError}
+          onCancel={() => {
+            setEditingCompany(false)
+            setModalError(null)
+          }}
+          onSubmit={saveCompany}
+        />
+      )}
+      {(showTutorCreate || editingTutor) && (
+        <TutorFormModal
+          tutor={editingTutor}
+          submitting={submitting}
+          error={modalError}
+          onCancel={() => {
+            setShowTutorCreate(false)
+            setEditingTutor(null)
+            setModalError(null)
+          }}
+          onSubmit={saveTutor}
+        />
+      )}
+    </>
   )
 }
 
@@ -202,6 +338,14 @@ interface CompanyDetailLayoutProps {
   tutors: TutorRow[]
   placements: CompanyDetail['placements']
   stats: CompanyDetail['stats']
+  canManage?: boolean
+  submitting?: boolean
+  notice?: string | null
+  onEditCompany?: () => void
+  onToggleArchiveCompany?: () => void
+  onAddTutor?: () => void
+  onEditTutor?: (tutor: TutorRow) => void
+  onArchiveTutor?: (tutor: TutorRow) => void
 }
 
 function CompanyDetailLayout({
@@ -211,6 +355,14 @@ function CompanyDetailLayout({
   tutors: linkedTutors,
   placements: linkedPlacements,
   stats,
+  canManage = false,
+  submitting = false,
+  notice = null,
+  onEditCompany,
+  onToggleArchiveCompany,
+  onAddTutor,
+  onEditTutor,
+  onArchiveTutor,
 }: CompanyDetailLayoutProps) {
   const router = useRouterState()
   const listPath = router.location.pathname.startsWith('/prof') ? '/prof/companies' : '/admin/companies'
@@ -219,7 +371,34 @@ function CompanyDetailLayout({
   const family = asProfessionalFamily(company.professional_family)
 
   return (
-    <AppLayout title={title} subtitle={subtitle}>
+    <AppLayout
+      title={title}
+      subtitle={subtitle}
+      actions={
+        canManage ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              iconLeft={<Edit3 className="w-4 h-4" />}
+              onClick={onEditCompany}
+              disabled={submitting}
+            >
+              Modifier
+            </Button>
+            <Button
+              size="sm"
+              variant={company.archived_at ? 'secondary' : 'danger'}
+              iconLeft={company.archived_at ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+              onClick={onToggleArchiveCompany}
+              disabled={submitting}
+            >
+              {company.archived_at ? 'Restaurer' : 'Archiver'}
+            </Button>
+          </div>
+        ) : null
+      }
+    >
       <div className="mb-4">
         <Link
           to={listPath}
@@ -229,6 +408,12 @@ function CompanyDetailLayout({
           Retour aux entreprises
         </Link>
       </div>
+
+      {notice && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {notice}
+        </div>
+      )}
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <MetricCard label="Stagiaires accueillis" value={stats.studentsHosted} icon={<Users className="w-4 h-4" />} />
@@ -247,6 +432,7 @@ function CompanyDetailLayout({
             <CardHeader>
               <CardTitle icon={<Building2 className="w-4 h-4" />}>Informations generales</CardTitle>
               <div className="flex flex-wrap items-center gap-1.5 justify-end">
+                {company.archived_at && <Badge tone="neutral">Archivee</Badge>}
                 <Badge tone={STATUS_TONE[status]}>{COMPANY_STATUS_LABELS[status]}</Badge>
                 <Badge tone={RELIABILITY_TONE[reliability]} dot>
                   {COMPANY_RELIABILITY_LABELS[reliability]}
@@ -337,6 +523,17 @@ function CompanyDetailLayout({
         <Card>
           <CardHeader>
             <CardTitle icon={<Users className="w-4 h-4" />}>Tuteurs</CardTitle>
+            {canManage && (
+              <Button
+                size="sm"
+                variant="secondary"
+                iconLeft={<Plus className="w-4 h-4" />}
+                onClick={onAddTutor}
+                disabled={submitting}
+              >
+                Ajouter
+              </Button>
+            )}
           </CardHeader>
           <CardBody>
             {linkedTutors.length === 0 ? (
@@ -348,7 +545,14 @@ function CompanyDetailLayout({
             ) : (
               <ul className="space-y-3">
                 {linkedTutors.map((tutor) => (
-                  <TutorItem key={tutor.id} tutor={tutor} />
+                  <TutorItem
+                    key={tutor.id}
+                    tutor={tutor}
+                    canManage={canManage}
+                    submitting={submitting}
+                    onEdit={onEditTutor}
+                    onArchive={onArchiveTutor}
+                  />
                 ))}
               </ul>
             )}
@@ -384,7 +588,19 @@ function InfoLine({ icon, value }: { icon: React.ReactNode; value: string }) {
   )
 }
 
-function TutorItem({ tutor }: { tutor: TutorRow }) {
+function TutorItem({
+  tutor,
+  canManage = false,
+  submitting = false,
+  onEdit,
+  onArchive,
+}: {
+  tutor: TutorRow
+  canManage?: boolean
+  submitting?: boolean
+  onEdit?: (tutor: TutorRow) => void
+  onArchive?: (tutor: TutorRow) => void
+}) {
   const responsiveness = asTutorResponsiveness(tutor.responsiveness)
   return (
     <li className="rounded-lg border border-[var(--color-border)] p-3">
@@ -419,6 +635,16 @@ function TutorItem({ tutor }: { tutor: TutorRow }) {
       </div>
       {tutor.internal_notes && (
         <p className="mt-2 text-xs text-[var(--color-warning-fg)]">{tutor.internal_notes}</p>
+      )}
+      {canManage && (
+        <div className="mt-3 flex justify-end gap-2">
+          <Button size="sm" variant="secondary" onClick={() => onEdit?.(tutor)} disabled={submitting}>
+            Modifier
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onArchive?.(tutor)} disabled={submitting}>
+            Archiver
+          </Button>
+        </div>
       )}
     </li>
   )

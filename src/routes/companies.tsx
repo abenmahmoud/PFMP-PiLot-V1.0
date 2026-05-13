@@ -1,7 +1,9 @@
 import { createFileRoute, Link, Navigate, Outlet, useMatchRoute, useRouterState } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, AlertTriangle, Building2, Mail, Phone, Plus, Star, Users } from 'lucide-react'
+import { Activity, AlertTriangle, Building2, FileSpreadsheet, Mail, Phone, Plus, Star, Users } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
+import { CompanyFormModal, type CompanyFormValues } from '@/components/companies/CompanyFormModal'
+import { CompanyImportModal } from '@/components/companies/CompanyImportModal'
 import { EmptyState } from '@/components/EmptyState'
 import { SearchFilterBar } from '@/components/SearchFilterBar'
 import { StatCard } from '@/components/StatCard'
@@ -16,6 +18,12 @@ import {
   fetchCompanies,
   type CompanyListItem,
 } from '@/services/companies'
+import {
+  createCompany,
+  importCompanies,
+  type CompanyImportRow,
+  type ImportCompaniesResult,
+} from '@/server/companies.functions'
 import { companies, tutors, buildCompanyIntelligence, ESTABLISHMENT_ID } from '@/data/demo'
 import {
   COMPANY_RELIABILITY_LABELS,
@@ -71,23 +79,36 @@ export function CompaniesPage() {
 
 export function CompaniesSupabase() {
   const auth = useAuth()
+  const router = useRouterState()
+  const accessToken = auth.session?.access_token ?? ''
+  const establishmentId = auth.activeEstablishmentId ?? auth.establishmentId
+  const isProfPortal = router.location.pathname.startsWith('/prof')
   const [query, setQuery] = useState('')
   const [familyFilter, setFamilyFilter] = useState<'all' | ProfessionalFamily>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | CompanyStatus>('all')
   const [reliabilityFilter, setReliabilityFilter] = useState<'all' | CompanyReliability>('all')
+  const [includeArchived, setIncludeArchived] = useState(false)
   const [rows, setRows] = useState<CompanyListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [modalError, setModalError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [dryRunResult, setDryRunResult] = useState<ImportCompaniesResult | null>(null)
 
-  useEffect(() => {
-    if (auth.loading) return
+  const canManage =
+    !isProfPortal &&
+    (auth.profile?.role === 'admin' || auth.profile?.role === 'ddfpt' || auth.profile?.role === 'superadmin')
+
+  function reload() {
     if (!auth.profile) {
       setRows([])
       setLoading(false)
       return
     }
 
-    let mounted = true
     setLoading(true)
     setError(null)
 
@@ -96,23 +117,67 @@ export function CompaniesSupabase() {
       professionalFamily: familyFilter === 'all' ? undefined : familyFilter,
       status: statusFilter === 'all' ? undefined : statusFilter,
       reliability: reliabilityFilter === 'all' ? undefined : reliabilityFilter,
+      includeArchived,
     })
-      .then((nextRows) => {
-        if (mounted) setRows(nextRows)
-      })
-      .catch((e) => {
-        if (mounted) setError(e instanceof Error ? e.message : String(e))
-      })
-      .finally(() => {
-        if (mounted) setLoading(false)
-      })
+      .then(setRows)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false))
+  }
 
-    return () => {
-      mounted = false
-    }
-  }, [auth.loading, auth.profile, familyFilter, query, reliabilityFilter, statusFilter])
+  useEffect(() => {
+    if (auth.loading) return
+    reload()
+  }, [auth.loading, auth.profile, familyFilter, includeArchived, query, reliabilityFilter, statusFilter])
 
   const intelligence = useMemo(() => buildCompanyNetworkSummary(rows), [rows])
+
+  async function saveCompany(values: CompanyFormValues) {
+    setSubmitting(true)
+    setModalError(null)
+    try {
+      await createCompany({ data: { accessToken, data: { ...values, establishmentId } } })
+      setNotice('Entreprise creee.')
+      setShowCreate(false)
+      reload()
+    } catch (e) {
+      setModalError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function dryRunImport(rowsToImport: CompanyImportRow[]) {
+    setSubmitting(true)
+    setModalError(null)
+    try {
+      const result = await importCompanies({
+        data: { accessToken, establishmentId, rows: rowsToImport, dryRun: true },
+      })
+      setDryRunResult(result)
+    } catch (e) {
+      setModalError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function confirmImport(rowsToImport: CompanyImportRow[]) {
+    setSubmitting(true)
+    setModalError(null)
+    try {
+      const result = await importCompanies({
+        data: { accessToken, establishmentId, rows: rowsToImport, dryRun: false },
+      })
+      setNotice(`${result.created} creees, ${result.updated} mises a jour, ${result.skipped} ignorees.`)
+      setShowImport(false)
+      setDryRunResult(null)
+      reload()
+    } catch (e) {
+      setModalError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   if (auth.loading || loading) return <CompaniesSkeleton />
 
@@ -142,11 +207,41 @@ export function CompaniesSupabase() {
       title="Entreprises et tuteurs"
       subtitle={`${intelligence.totalCompanies} entreprises - ${intelligence.tutorsCount} tuteurs - donnees Supabase`}
       actions={
-        <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} disabled>
-          Ajouter
-        </Button>
+        canManage ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              iconLeft={<FileSpreadsheet className="w-4 h-4" />}
+              onClick={() => setShowImport(true)}
+            >
+              Importer
+            </Button>
+            <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
+              Ajouter
+            </Button>
+          </div>
+        ) : null
       }
     >
+      <div className="space-y-4">
+        {notice && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {notice}
+          </div>
+        )}
+        {canManage && (
+          <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
+            <input
+              type="checkbox"
+              checked={includeArchived}
+              onChange={(event) => setIncludeArchived(event.target.checked)}
+            />
+            Afficher les entreprises archivees
+          </label>
+        )}
+      </div>
+
       <CompaniesStats summary={intelligence} />
       <CompaniesFilters
         query={query}
@@ -171,6 +266,33 @@ export function CompaniesSupabase() {
             <CompanySupabaseCard key={item.company.id} item={item} />
           ))}
         </div>
+      )}
+
+      {showCreate && (
+        <CompanyFormModal
+          establishmentId={establishmentId}
+          submitting={submitting}
+          error={modalError}
+          onCancel={() => {
+            setShowCreate(false)
+            setModalError(null)
+          }}
+          onSubmit={saveCompany}
+        />
+      )}
+      {showImport && (
+        <CompanyImportModal
+          submitting={submitting}
+          error={modalError}
+          dryRunResult={dryRunResult}
+          onCancel={() => {
+            setShowImport(false)
+            setDryRunResult(null)
+            setModalError(null)
+          }}
+          onDryRun={dryRunImport}
+          onImport={confirmImport}
+        />
       )}
     </AppLayout>
   )
@@ -334,7 +456,7 @@ function CompaniesFilters({
     <SearchFilterBar
       query={query}
       onQueryChange={setQuery}
-      placeholder="Rechercher par nom, ville, secteur ou tuteur..."
+      placeholder="Rechercher par nom, ville, secteur, SIRET ou tuteur..."
       filters={
         <>
           <Select
@@ -403,6 +525,7 @@ function CompanySupabaseCard({ item }: { item: CompanyListItem }) {
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">
             {formatAddress(company)}
           </p>
+          {company.archived_at && <Badge tone="neutral">Archivee</Badge>}
         </div>
         <CompanyBadges status={status} reliability={reliability} />
       </CardHeader>
