@@ -15,6 +15,7 @@ export interface CompanyFilters {
   reliability?: CompanyReliability
   status?: CompanyStatus
   search?: string
+  includeArchived?: boolean
 }
 
 export interface CompanyListItem {
@@ -59,9 +60,9 @@ export async function fetchCompanies(filters: CompanyFilters = {}): Promise<Comp
   let query = sb
     .from('companies')
     .select('*')
-    .is('archived_at', null)
     .order('name')
 
+  if (!filters.includeArchived) query = query.is('archived_at', null)
   if (scope) query = query.eq('establishment_id', scope)
   if (filters.city) query = query.ilike('city', `%${filters.city}%`)
   if (filters.professionalFamily) query = query.eq('professional_family', filters.professionalFamily)
@@ -134,7 +135,6 @@ export async function fetchCompanyById(id: string): Promise<CompanyDetail | null
     .from('companies')
     .select('*')
     .eq('id', id)
-    .is('archived_at', null)
     .maybeSingle()
 
   if (companyError) throw new Error(`fetchCompanyById company: ${companyError.message}`)
