@@ -789,6 +789,8 @@ function demoPlacementToRow(placement: (typeof placements)[number]): PlacementRo
     start_date: placement.startDate,
     end_date: placement.endDate,
     status: placement.status,
+    notes: null,
+    archived_at: null,
     created_at: '',
     updated_at: '',
   }
