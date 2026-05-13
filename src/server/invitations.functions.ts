@@ -1,12 +1,14 @@
 import { createServerFn } from '@tanstack/react-start'
 import { createClient } from '@supabase/supabase-js'
 import type { UserRole } from '@/lib/database.types'
+import { canInvite } from '@/lib/permissions'
+import { safeHandlerCall } from './_lib'
 
 declare const process: {
   env: Record<string, string | undefined>
 }
 
-export type InviteUserRole = Exclude<UserRole, 'superadmin' | 'tuteur'>
+export type InviteUserRole = Exclude<UserRole, 'superadmin'>
 
 export interface InviteUserToEstablishmentInput {
   accessToken: string
@@ -37,19 +39,15 @@ interface EstablishmentForInvite {
   slug: string
 }
 
-const SUPERADMIN_INVITABLE_ROLES: InviteUserRole[] = [
-  'admin',
-  'ddfpt',
-  'principal',
-  'referent',
-  'eleve',
-]
-
-const TENANT_ADMIN_INVITABLE_ROLES: InviteUserRole[] = ['principal', 'referent', 'eleve']
-
 export const inviteUserToEstablishment = createServerFn({ method: 'POST' })
   .inputValidator(validateInviteInput)
   .handler(async ({ data }): Promise<InviteUserToEstablishmentResult> => {
+    return safeHandlerCall(async () => inviteUserToEstablishmentUnsafe(data))
+  })
+
+async function inviteUserToEstablishmentUnsafe(
+  data: InviteUserToEstablishmentInput,
+): Promise<InviteUserToEstablishmentResult> {
     const adminClient = createAdminClient()
 
     const { data: userResult, error: userError } = await adminClient.auth.getUser(data.accessToken)
@@ -154,7 +152,7 @@ export const inviteUserToEstablishment = createServerFn({ method: 'POST' })
       email: cleanEmail,
       role: data.role,
     }
-  })
+}
 
 function validateInviteInput(raw: unknown): InviteUserToEstablishmentInput {
   const data = raw as Partial<InviteUserToEstablishmentInput>
@@ -186,21 +184,13 @@ function assertInvitePermission(
   caller: CallerProfile,
   input: InviteUserToEstablishmentInput,
 ): void {
-  if (caller.role === 'superadmin') {
-    if (!SUPERADMIN_INVITABLE_ROLES.includes(input.role)) {
-      throw new Error('Role non autorise pour le superadmin.')
-    }
-    return
-  }
-
-  if (caller.role !== 'admin' && caller.role !== 'ddfpt') {
-    throw new Error('Acces refuse: seuls superadmin, admin et DDFPT peuvent inviter.')
-  }
-  if (caller.establishment_id !== input.establishmentId) {
+  if (caller.role !== 'superadmin' && caller.establishment_id !== input.establishmentId) {
     throw new Error('Acces refuse: vous ne pouvez inviter que dans votre etablissement.')
   }
-  if (!TENANT_ADMIN_INVITABLE_ROLES.includes(input.role)) {
-    throw new Error('Seul le superadmin peut inviter un admin ou un DDFPT.')
+  if (!canInvite(caller.role, input.role)) {
+    throw new Error(
+      `Acces refuse: en tant que ${caller.role}, vous ne pouvez pas inviter un utilisateur ${input.role}.`,
+    )
   }
 }
 
@@ -249,6 +239,7 @@ function isInviteRole(value: unknown): value is InviteUserRole {
     value === 'ddfpt' ||
     value === 'principal' ||
     value === 'referent' ||
+    value === 'tuteur' ||
     value === 'eleve'
   )
 }

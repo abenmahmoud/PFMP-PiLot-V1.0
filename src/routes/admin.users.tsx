@@ -11,6 +11,7 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAuth } from '@/lib/AuthProvider'
+import { getInvitableRoles, ROLE_LABELS } from '@/lib/permissions'
 import { isDemoMode } from '@/lib/supabase'
 import type { UserRole } from '@/lib/database.types'
 import {
@@ -18,7 +19,7 @@ import {
   type UserRowEnriched,
   type UserStatusFilter,
 } from '@/server/users.functions'
-import { ROLE_LABELS } from '@/types'
+import type { InviteUserRole } from '@/server/invitations.functions'
 
 export const Route = createFileRoute('/admin/users')({
   component: AdminUsersPage,
@@ -65,7 +66,11 @@ function AdminUsersSupabase() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const scope = auth.establishmentId ?? auth.activeEstablishmentId
-  const canInvite = auth.profile?.role === 'superadmin' || auth.profile?.role === 'admin'
+  const invitableRoles = useMemo(
+    () => toInviteRoles(auth.profile ? getInvitableRoles(auth.profile.role) : []),
+    [auth.profile],
+  )
+  const canInvite = invitableRoles.length > 0
 
   function reloadUsers() {
     if (!scope || !auth.session?.access_token) {
@@ -244,12 +249,8 @@ function AdminUsersSupabase() {
               <CardBody>
                 <InviteUserForm
                   establishmentId={scope}
-                  allowedRoles={
-                    auth.profile.role === 'superadmin'
-                      ? ['admin', 'ddfpt', 'principal', 'referent', 'eleve']
-                      : ['principal', 'referent', 'eleve']
-                  }
-                  defaultRole={auth.profile.role === 'superadmin' ? 'admin' : 'referent'}
+                  allowedRoles={invitableRoles}
+                  defaultRole={getDefaultInviteRole(invitableRoles)}
                   compact
                   onInvited={reloadUsers}
                 />
@@ -316,4 +317,14 @@ function UserRow({
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('fr-FR')
+}
+
+function toInviteRoles(roles: UserRole[]): InviteUserRole[] {
+  return roles.filter((role): role is InviteUserRole => role !== 'superadmin')
+}
+
+function getDefaultInviteRole(roles: InviteUserRole[]): InviteUserRole | undefined {
+  if (roles.includes('ddfpt')) return 'ddfpt'
+  if (roles.includes('referent')) return 'referent'
+  return roles[0]
 }

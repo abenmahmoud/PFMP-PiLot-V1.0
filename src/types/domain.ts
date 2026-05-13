@@ -1,24 +1,9 @@
 export type UUID = string
 export type ISODate = string
 
-export type UserRole =
-  | 'superadmin'
-  | 'admin'
-  | 'ddfpt'
-  | 'principal'
-  | 'referent'
-  | 'tuteur'
-  | 'eleve'
+import type { UserRole as DatabaseUserRole } from '@/lib/database.types'
 
-export const ROLE_LABELS: Record<UserRole, string> = {
-  superadmin: 'Superadmin SaaS',
-  admin: 'Admin établissement',
-  ddfpt: 'DDFPT / Chef de travaux',
-  principal: 'Professeur principal',
-  referent: 'Professeur référent',
-  tuteur: 'Tuteur entreprise',
-  eleve: 'Élève',
-}
+export type UserRole = DatabaseUserRole
 
 export interface Establishment {
   id: UUID

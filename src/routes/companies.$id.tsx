@@ -533,6 +533,7 @@ function demoStudentToRow(student: (typeof students)[number] | null): StudentRow
     phone: student.phone ?? null,
     formation: student.formation,
     notes: student.notes ?? null,
+    referent_id: student.referentId ?? null,
     archived_at: null,
     created_at: '',
     updated_at: '',

@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import type { EstablishmentRow, Json, ProfileRow, UserRole } from '@/lib/database.types'
+import { canManageUser } from '@/lib/permissions'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -67,9 +68,7 @@ interface UserTarget {
 
 type AdminClient = SupabaseClient
 
-const TENANT_ADMIN_ROLES: UserRole[] = ['admin']
 const READ_TENANT_ROLES: UserRole[] = ['admin', 'ddfpt']
-const PROTECTED_ADMIN_ROLES: UserRole[] = ['superadmin', 'admin']
 const ROLE_VALUES: UserRole[] = [
   'superadmin',
   'admin',
@@ -631,17 +630,14 @@ function assertManageTargetPermission(
   requestedRole?: UserRole,
 ): void {
   if (caller.role === 'superadmin') return
-  if (!TENANT_ADMIN_ROLES.includes(caller.role)) {
-    throw new Error('Acces refuse: action reservee aux admins.')
-  }
   if (!caller.establishment_id || caller.establishment_id !== target.establishment_id) {
     throw new Error('Acces refuse: utilisateur hors de votre etablissement.')
   }
-  if (PROTECTED_ADMIN_ROLES.includes(target.role)) {
-    throw new Error('Acces refuse: seul un superadmin peut modifier un admin ou superadmin.')
+  if (!canManageUser(caller.role, target.role)) {
+    throw new Error(`Acces refuse: vous ne pouvez pas modifier un utilisateur ${target.role}.`)
   }
-  if (requestedRole && PROTECTED_ADMIN_ROLES.includes(requestedRole)) {
-    throw new Error('Acces refuse: seul un superadmin peut attribuer ce role.')
+  if (requestedRole && !canManageUser(caller.role, requestedRole)) {
+    throw new Error(`Acces refuse: vous ne pouvez pas attribuer le role ${requestedRole}.`)
   }
 }
 

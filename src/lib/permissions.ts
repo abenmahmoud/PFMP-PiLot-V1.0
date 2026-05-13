@@ -25,6 +25,52 @@
 
 import type { UserRole } from './database.types'
 
+export const ROLE_LABELS: Record<UserRole, string> = {
+  superadmin: 'Superadmin',
+  admin: 'Admin etablissement',
+  ddfpt: 'DDFPT / Chef de travaux',
+  principal: 'Professeur principal',
+  referent: 'Referent PFMP',
+  tuteur: 'Tuteur entreprise',
+  eleve: 'Eleve',
+}
+
+export const INVITE_RULES: Record<UserRole, UserRole[]> = {
+  superadmin: ['admin', 'ddfpt', 'principal', 'referent', 'tuteur', 'eleve'],
+  admin: ['ddfpt', 'principal', 'referent', 'tuteur', 'eleve'],
+  ddfpt: ['principal', 'referent', 'tuteur', 'eleve'],
+  principal: [],
+  referent: [],
+  tuteur: [],
+  eleve: [],
+}
+
+export const MANAGE_USER_RULES: Record<UserRole, UserRole[]> = {
+  superadmin: ['admin', 'ddfpt', 'principal', 'referent', 'tuteur', 'eleve'],
+  admin: ['ddfpt', 'principal', 'referent', 'tuteur', 'eleve'],
+  ddfpt: ['principal', 'referent', 'tuteur', 'eleve'],
+  principal: [],
+  referent: [],
+  tuteur: [],
+  eleve: [],
+}
+
+export function canInvite(callerRole: UserRole, targetRole: UserRole): boolean {
+  return (INVITE_RULES[callerRole] ?? []).includes(targetRole)
+}
+
+export function canManageUser(callerRole: UserRole, targetRole: UserRole): boolean {
+  return (MANAGE_USER_RULES[callerRole] ?? []).includes(targetRole)
+}
+
+export function getInvitableRoles(callerRole: UserRole): UserRole[] {
+  return INVITE_RULES[callerRole] ?? []
+}
+
+export function getManageableRoles(callerRole: UserRole): UserRole[] {
+  return MANAGE_USER_RULES[callerRole] ?? []
+}
+
 export interface SessionContext {
   /** ID de l'utilisateur connecté (auth.uid()) */
   userId: string | null

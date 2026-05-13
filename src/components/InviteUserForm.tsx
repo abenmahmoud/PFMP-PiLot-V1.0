@@ -1,20 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Mail, Send } from 'lucide-react'
+import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/Button'
 import { FieldHint, Input, Label, Select } from '@/components/ui/Field'
 import { useAuth } from '@/lib/AuthProvider'
+import { getInvitableRoles, ROLE_LABELS } from '@/lib/permissions'
 import {
   inviteUserToEstablishment,
   type InviteUserRole,
 } from '@/server/invitations.functions'
-
-const ROLE_LABELS: Record<InviteUserRole, string> = {
-  admin: 'Admin etablissement',
-  ddfpt: 'DDFPT',
-  principal: 'Professeur principal',
-  referent: 'Professeur referent',
-  eleve: 'Eleve',
-}
 
 interface InviteUserFormProps {
   establishmentId: string
@@ -32,13 +26,24 @@ export function InviteUserForm({
   onInvited,
 }: InviteUserFormProps) {
   const auth = useAuth()
+  const effectiveRoles = useMemo(() => {
+    const callerRole = auth.profile?.role ?? 'eleve'
+    const invitable = getInvitableRoles(callerRole)
+    return allowedRoles.filter((item) => invitable.includes(item))
+  }, [allowedRoles, auth.profile?.role])
+  const fallbackRole = getFallbackRole(effectiveRoles, defaultRole)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<InviteUserRole>(defaultRole)
+  const [role, setRole] = useState<InviteUserRole>(fallbackRole ?? 'eleve')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!fallbackRole) return
+    if (!effectiveRoles.includes(role)) setRole(fallbackRole)
+  }, [effectiveRoles, fallbackRole, role])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -49,7 +54,7 @@ export function InviteUserForm({
       setError('Session introuvable. Reconnectez-vous.')
       return
     }
-    if (!allowedRoles.includes(role)) {
+    if (!effectiveRoles.includes(role)) {
       setError('Role non autorise dans ce contexte.')
       return
     }
@@ -70,13 +75,23 @@ export function InviteUserForm({
       setFirstName('')
       setLastName('')
       setEmail('')
-      setRole(defaultRole)
+      if (fallbackRole) setRole(fallbackRole)
       onInvited?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (effectiveRoles.length === 0) {
+    return (
+      <EmptyState
+        title="Invitation non autorisee"
+        description="Votre role ne permet pas d'inviter de nouveaux utilisateurs."
+        className="py-8"
+      />
+    )
   }
 
   return (
@@ -120,7 +135,7 @@ export function InviteUserForm({
             value={role}
             onChange={(event) => setRole(event.target.value as InviteUserRole)}
           >
-            {allowedRoles.map((item) => (
+            {effectiveRoles.map((item) => (
               <option key={item} value={item}>
                 {ROLE_LABELS[item]}
               </option>
@@ -151,4 +166,12 @@ export function InviteUserForm({
       )}
     </form>
   )
+}
+
+function getFallbackRole(
+  roles: InviteUserRole[],
+  preferred: InviteUserRole | undefined,
+): InviteUserRole | null {
+  if (preferred && roles.includes(preferred)) return preferred
+  return roles[0] ?? null
 }

@@ -9,7 +9,7 @@ export interface ClassListItem {
   noStageCount: number
 }
 
-export async function fetchClasses(): Promise<ClassListItem[]> {
+export async function fetchClasses(profile?: ProfileRow | null): Promise<ClassListItem[]> {
   const sb = getSupabase()
   const scope = await getActiveEstablishmentScope()
   let query = sb
@@ -24,7 +24,11 @@ export async function fetchClasses(): Promise<ClassListItem[]> {
 
   if (error) throw new Error(`fetchClasses classes: ${error.message}`)
 
-  const classes = (data as ClassRow[]) ?? []
+  const allClasses = (data as ClassRow[]) ?? []
+  const classes =
+    profile?.role === 'principal'
+      ? allClasses.filter((klass) => klass.principal_id === profile.id)
+      : allClasses
   if (classes.length === 0) return []
 
   const classIds = classes.map((klass) => klass.id)

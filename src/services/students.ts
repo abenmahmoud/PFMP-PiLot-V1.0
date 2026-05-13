@@ -6,6 +6,7 @@ import type {
   CompanyRow,
   DocumentRow,
   PlacementRow,
+  ProfileRow,
   StageStatus,
   StudentRow,
   TeacherRow,
@@ -46,7 +47,10 @@ export interface StudentDetail {
   } | null
 }
 
-export async function fetchStudents(filters: StudentFilters = {}): Promise<StudentListItem[]> {
+export async function fetchStudents(
+  filters: StudentFilters = {},
+  profile?: ProfileRow | null,
+): Promise<StudentListItem[]> {
   const sb = getSupabase()
   const scope = await getActiveEstablishmentScope()
   let query = sb
@@ -118,13 +122,19 @@ export async function fetchStudents(filters: StudentFilters = {}): Promise<Stude
       }
     })
     .filter((item) => {
+      if (profile?.role === 'principal') {
+        if (!item.class || item.class.principal_id !== profile.id) return false
+      }
       if (filters.stageStatus && item.stageStatus !== filters.stageStatus) return false
       if (filters.referentId && item.placement?.referent_id !== filters.referentId) return false
       return true
     })
 }
 
-export async function fetchStudentById(id: string): Promise<StudentDetail | null> {
+export async function fetchStudentById(
+  id: string,
+  profile?: ProfileRow | null,
+): Promise<StudentDetail | null> {
   const sb = getSupabase()
   const { data: studentData, error: studentError } = await sb
     .from('students')
@@ -192,6 +202,11 @@ export async function fetchStudentById(id: string): Promise<StudentDetail | null
     console.warn('fetchStudentById accessCode:', accessCodeResult.error.message)
   }
 
+  const studentClass = (classResult.data as ClassRow | null) ?? null
+  if (profile?.role === 'principal' && studentClass?.principal_id !== profile.id) {
+    return null
+  }
+
   const placements = (placementsResult.data as PlacementRow[]) ?? []
   const placement = placements[0] ?? null
 
@@ -217,7 +232,7 @@ export async function fetchStudentById(id: string): Promise<StudentDetail | null
 
   return {
     student,
-    class: (classResult.data as ClassRow | null) ?? null,
+    class: studentClass,
     placement,
     company: (companyResult.data as CompanyRow | null) ?? null,
     tutor: (tutorResult.data as TutorRow | null) ?? null,

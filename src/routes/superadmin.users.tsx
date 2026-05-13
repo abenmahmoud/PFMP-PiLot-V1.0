@@ -11,6 +11,7 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAuth } from '@/lib/AuthProvider'
+import { ROLE_LABELS } from '@/lib/permissions'
 import { isDemoMode } from '@/lib/supabase'
 import type { UserRole } from '@/lib/database.types'
 import {
@@ -19,7 +20,6 @@ import {
   type UserStatusFilter,
 } from '@/server/users.functions'
 import { fetchEstablishmentsList } from '@/services/superadmin'
-import { ROLE_LABELS } from '@/types'
 
 export const Route = createFileRoute('/superadmin/users')({
   component: SuperadminUsersPage,
@@ -42,6 +42,7 @@ const ROLE_FILTERS: Array<UserRole | 'all'> = [
   'ddfpt',
   'principal',
   'referent',
+  'tuteur',
   'eleve',
 ]
 

@@ -1,4 +1,5 @@
-import type { UserRole } from '@/lib/database.types'
+import type { ClassRow, ProfileRow, UserRole } from '@/lib/database.types'
+import { canManageUser, getManageableRoles } from '@/lib/permissions'
 import type { UserRowEnriched } from '@/server/users.functions'
 
 export type UserActionId =
@@ -18,8 +19,6 @@ interface PermissionInput {
   callerEstablishmentId: string | null
 }
 
-const PROTECTED_ROLES: UserRole[] = ['superadmin', 'admin']
-
 export function getAvailableUserActions({
   user,
   callerRole,
@@ -29,11 +28,14 @@ export function getAvailableUserActions({
   const isSelf = user.id === callerId
   const isSuperadmin = callerRole === 'superadmin'
   const isTenantAdmin =
-    callerRole === 'admin' &&
     Boolean(callerEstablishmentId) &&
     callerEstablishmentId === user.establishment_id &&
-    !PROTECTED_ROLES.includes(user.role)
-  const canManage = isSuperadmin || isTenantAdmin
+    canManageUser(callerRole, user.role)
+  const canManage =
+    isSuperadmin ||
+    (isTenantAdmin &&
+      Boolean(callerEstablishmentId) &&
+      callerEstablishmentId === user.establishment_id)
 
   if (!canManage) return []
 
@@ -63,11 +65,25 @@ export function getAvailableUserActions({
 }
 
 export function getAssignableRoles(callerRole: UserRole): UserRole[] {
-  if (callerRole === 'superadmin') {
-    return ['admin', 'ddfpt', 'principal', 'referent', 'eleve']
-  }
-  if (callerRole === 'admin') {
-    return ['ddfpt', 'principal', 'referent', 'eleve']
-  }
-  return []
+  return getManageableRoles(callerRole)
+}
+
+export function canViewClass(user: ProfileRow, klass: ClassRow): boolean {
+  if (user.role === 'superadmin') return true
+  if (user.establishment_id !== klass.establishment_id) return false
+  if (user.role === 'admin' || user.role === 'ddfpt') return true
+  if (user.role === 'principal' && klass.principal_id === user.id) return true
+  return false
+}
+
+export function canManageClassCodes(user: ProfileRow, klass: ClassRow): boolean {
+  return canViewClass(user, klass)
+}
+
+export function canAssignReferent(user: ProfileRow, klass: ClassRow): boolean {
+  return canViewClass(user, klass)
+}
+
+export function canAssignPlacement(user: ProfileRow, klass: ClassRow): boolean {
+  return canViewClass(user, klass)
 }

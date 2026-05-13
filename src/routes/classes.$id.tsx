@@ -234,6 +234,7 @@ function ClassAccessDemo({ classId }: { classId: string }) {
         phone: student.phone ?? null,
         formation: student.formation,
         notes: student.notes ?? null,
+        referent_id: student.referentId ?? null,
         archived_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
