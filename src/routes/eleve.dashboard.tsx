@@ -342,12 +342,15 @@ function isStudentPublicSession(value: unknown): value is StudentPublicSession {
 
 function getStageLabel(status: string): string {
   const labels: Record<string, string> = {
+    draft: 'Stage en preparation',
+    confirmed: 'Stage confirme',
     no_stage: 'Stage non assigne',
     found: 'Stage trouve',
     pending_convention: 'Convention en attente',
     signed_convention: 'Convention signee',
     in_progress: 'Stage en cours',
     completed: 'Stage termine',
+    cancelled: 'Stage annule',
     interrupted: 'Stage interrompu',
   }
   return labels[status] ?? status
@@ -356,8 +359,9 @@ function getStageLabel(status: string): string {
 function getStageTone(status: string): BadgeTone {
   if (status === 'completed') return 'success'
   if (status === 'in_progress' || status === 'signed_convention') return 'info'
-  if (status === 'interrupted') return 'danger'
-  if (status === 'no_stage') return 'warning'
+  if (status === 'interrupted' || status === 'cancelled') return 'danger'
+  if (status === 'no_stage' || status === 'draft') return 'warning'
+  if (status === 'confirmed') return 'info'
   return 'brand'
 }
 

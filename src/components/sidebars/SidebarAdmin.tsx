@@ -44,7 +44,7 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/teachers', label: 'Professeurs', icon: UserCog, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
   { to: '/admin/companies', label: 'Entreprises', icon: Building2, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
   { to: '/admin/pfmp-periods', label: 'Periodes PFMP', icon: Calendar, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
-  { to: '/admin/assignments', label: 'Affectations', icon: Network, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
+  { to: '/admin/placements', label: 'Affectations', icon: Network, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
   { to: '/admin/documents', label: 'Documents', icon: FileText, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
   { to: '/admin/alerts', label: 'Alertes', icon: Bell, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },
   { to: '/admin/exports', label: 'Exports', icon: Download, roles: ['admin', 'ddfpt', 'superadmin'], section: 'admin' },

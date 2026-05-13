@@ -27,7 +27,7 @@ const PROF_NAV: ProfNavItem[] = [
   { to: '/prof/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['principal', 'referent'] },
   { to: '/prof/my-classes', label: 'Mes classes', icon: Users, roles: ['principal'] },
   { to: '/prof/my-students', label: 'Mes eleves', icon: GraduationCap, roles: ['principal', 'referent'] },
-  { to: '/prof/assignments', label: 'Affectations', icon: Network, roles: ['principal'] },
+  { to: '/prof/placements', label: 'Mes affectations', icon: Network, roles: ['principal', 'referent'] },
   { to: '/prof/visits', label: 'Visites', icon: Route, roles: ['referent', 'principal'] },
   { to: '/prof/alerts', label: 'Alertes', icon: Bell, roles: ['principal', 'referent'] },
   { to: '/prof/companies', label: 'Entreprises', icon: Building2, roles: ['principal', 'referent'] },

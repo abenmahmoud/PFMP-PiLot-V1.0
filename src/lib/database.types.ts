@@ -27,15 +27,25 @@ export type UserRole =
   | 'eleve'
 
 export type StageStatus =
+  | 'draft'
+  | 'confirmed'
   | 'no_stage'
   | 'found'
   | 'pending_convention'
   | 'signed_convention'
   | 'in_progress'
   | 'completed'
+  | 'cancelled'
   | 'interrupted'
 
-export type PeriodStatus = 'preparation' | 'in_progress' | 'completed' | 'archived'
+export type PeriodStatus =
+  | 'draft'
+  | 'published'
+  | 'preparation'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'archived'
 export type VisitStatus = 'draft' | 'validated' | 'archived'
 export type ContactType = 'visit' | 'call' | 'video' | 'email'
 export type AlertLevel = 'none' | 'vigilance' | 'problem' | 'urgent'
@@ -179,11 +189,15 @@ export interface TutorRow {
 export interface PfmpPeriodRow {
   id: string
   establishment_id: string
+  class_id: string | null
   name: string
+  type: string
   school_year: string
   start_date: string
   end_date: string
   status: PeriodStatus
+  notes: string | null
+  archived_at: string | null
   created_at: string
   updated_at: string
 }
@@ -199,6 +213,8 @@ export interface PlacementRow {
   start_date: string | null
   end_date: string | null
   status: StageStatus
+  notes: string | null
+  archived_at: string | null
   created_at: string
   updated_at: string
 }

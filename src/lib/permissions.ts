@@ -23,7 +23,7 @@
  *   ces fonctions pour matcher.
  */
 
-import type { UserRole } from './database.types'
+import type { ClassRow, PlacementRow, UserRole } from './database.types'
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   superadmin: 'Superadmin',
@@ -189,6 +189,30 @@ export function canManageTeachers(s: SessionContext): boolean {
 /** Peut-il affecter le professeur principal d'une classe ? */
 export function canAssignClassPrincipal(s: SessionContext): boolean {
   return isSuperadmin(s) || isEstablishmentAdmin(s)
+}
+
+/** Peut-il gerer les periodes PFMP ? */
+export function canManagePeriods(s: SessionContext): boolean {
+  return isSuperadmin(s) || isEstablishmentAdmin(s)
+}
+
+/** Peut-il creer un placement pour cette classe ? */
+export function canCreatePlacement(s: SessionContext, studentClass: ClassRow | null): boolean {
+  if (isSuperadmin(s) || isEstablishmentAdmin(s)) return true
+  if (s.role === 'principal' && studentClass?.principal_id === s.userId) return true
+  return false
+}
+
+/** Peut-il modifier le statut d'un placement ? */
+export function canUpdatePlacementStatus(
+  s: SessionContext,
+  placement: Pick<PlacementRow, 'establishment_id'>,
+  studentClass: ClassRow | null,
+): boolean {
+  if (isSuperadmin(s)) return true
+  if (isEstablishmentAdmin(s) && s.establishmentId === placement.establishment_id) return true
+  if (s.role === 'principal' && studentClass?.principal_id === s.userId) return true
+  return false
 }
 
 /** Peut-il supprimer une entité ? (en RLS, seul le superadmin peut delete) */

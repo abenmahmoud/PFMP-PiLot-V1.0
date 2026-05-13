@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useRouterState } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Calendar, Plus } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -6,9 +6,12 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { PeriodStatusBadge } from '@/components/StatusBadge'
+import { PeriodFormModal, periodValuesToCreateInput, type PeriodFormValues } from '@/components/pfmpPeriods/PeriodFormModal'
+import { PeriodCalendarView } from '@/components/pfmpPeriods/PeriodCalendarView'
 import { useAuth } from '@/lib/AuthProvider'
-import { isDemoMode } from '@/lib/supabase'
-import { fetchPfmpPeriods, type PfmpPeriodListItem } from '@/services/pfmpPeriods'
+import { getSupabase, isDemoMode } from '@/lib/supabase'
+import type { ClassRow } from '@/lib/database.types'
+import { createPfmpPeriod, listPfmpPeriodsForEstablishment, type PfmpPeriodWithStats } from '@/server/pfmpPeriods.functions'
 import { classes, pfmpPeriods } from '@/data/demo'
 
 export const Route = createFileRoute('/pfmp-periods')({
@@ -27,13 +30,37 @@ export function PeriodsPage() {
 
 function PeriodsSupabase() {
   const auth = useAuth()
-  const [items, setItems] = useState<PfmpPeriodListItem[]>([])
+  const routerState = useRouterState()
+  const isProfPortal = routerState.location.pathname.startsWith('/prof')
+  const [items, setItems] = useState<PfmpPeriodWithStats[]>([])
+  const [classRows, setClassRows] = useState<ClassRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [modalError, setModalError] = useState<string | null>(null)
+
+  async function reload() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken) return
+    const sb = getSupabase()
+    const [periods, classesResult] = await Promise.all([
+      listPfmpPeriodsForEstablishment({
+        data: {
+          accessToken,
+          establishmentId: auth.activeEstablishmentId,
+        },
+      }),
+      sb.from('classes').select('*').order('name'),
+    ])
+    if (classesResult.error) throw new Error(`Lecture classes impossible: ${classesResult.error.message}`)
+    setItems(periods)
+    setClassRows((classesResult.data as ClassRow[]) ?? [])
+  }
 
   useEffect(() => {
     if (auth.loading) return
-    if (!auth.profile) {
+    if (!auth.profile || !auth.session) {
       setLoading(false)
       return
     }
@@ -42,9 +69,9 @@ function PeriodsSupabase() {
     setLoading(true)
     setError(null)
 
-    withTimeout(fetchPfmpPeriods(), LOAD_TIMEOUT_MS, 'Lecture Supabase trop longue')
-      .then((nextItems) => {
-        if (mounted) setItems(nextItems)
+    withTimeout(reload(), LOAD_TIMEOUT_MS, 'Lecture Supabase trop longue')
+      .then(() => {
+        if (!mounted) return
       })
       .catch((e) => {
         if (mounted) setError(e instanceof Error ? e.message : String(e))
@@ -56,7 +83,7 @@ function PeriodsSupabase() {
     return () => {
       mounted = false
     }
-  }, [auth.loading, auth.profile])
+  }, [auth.loading, auth.profile, auth.session, auth.activeEstablishmentId])
 
   if (auth.loading || loading) return <PeriodsSkeleton />
 
@@ -81,30 +108,68 @@ function PeriodsSupabase() {
     )
   }
 
+  const canManage = !isProfPortal && ['admin', 'ddfpt', 'superadmin'].includes(auth.profile.role)
+
+  async function handleCreatePeriod(values: PeriodFormValues) {
+    const accessToken = auth.session?.access_token
+    if (!accessToken) return
+    setSubmitting(true)
+    setModalError(null)
+    try {
+      await createPfmpPeriod({
+        data: {
+          accessToken,
+          data: periodValuesToCreateInput(values, auth.activeEstablishmentId),
+        },
+      })
+      setModalOpen(false)
+      await reload()
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
-    <AppLayout
-      title="Periodes PFMP"
-      subtitle={`${items.length} periodes - donnees Supabase`}
-      actions={
-        <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} disabled>
-          Nouvelle periode
-        </Button>
-      }
-    >
-      {items.length === 0 ? (
-        <EmptyState
-          icon={<Calendar className="w-5 h-5" />}
-          title="Aucune periode PFMP"
-          description="Creez une periode PFMP pour suivre les affectations, visites et documents."
-        />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {items.map((item) => (
-            <PeriodCard key={item.period.id} item={item} />
-          ))}
-        </div>
-      )}
-    </AppLayout>
+    <>
+      <AppLayout
+        title="Periodes PFMP"
+        subtitle={`${items.length} periodes - donnees Supabase`}
+        actions={
+          canManage ? (
+            <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
+              Nouvelle periode
+            </Button>
+          ) : undefined
+        }
+      >
+        {items.length === 0 ? (
+          <EmptyState
+            icon={<Calendar className="w-5 h-5" />}
+            title="Aucune periode PFMP"
+            description="Creez une periode PFMP pour suivre les affectations, visites et documents."
+          />
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {items.map((item) => (
+                <PeriodCard key={item.period.id} item={item} isProfPortal={isProfPortal} />
+              ))}
+            </div>
+            <PeriodCalendarView periods={items} />
+          </div>
+        )}
+      </AppLayout>
+      <PeriodFormModal
+        open={modalOpen}
+        classes={classRows}
+        submitting={submitting}
+        error={modalError}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleCreatePeriod}
+      />
+    </>
   )
 }
 
@@ -146,8 +211,8 @@ function PeriodsDemo() {
   )
 }
 
-function PeriodCard({ item }: { item: PfmpPeriodListItem }) {
-  const classNames = item.classes.map((klass) => klass.name).join(' - ') || 'Aucune classe rattachee'
+function PeriodCard({ item, isProfPortal }: { item: PfmpPeriodWithStats; isProfPortal: boolean }) {
+  const classNames = item.class?.name ?? 'Aucune classe rattachee'
   return (
     <Card>
       <CardHeader>
@@ -161,9 +226,24 @@ function PeriodCard({ item }: { item: PfmpPeriodListItem }) {
       </CardHeader>
       <CardBody className="grid grid-cols-3 gap-3 text-center">
         <Stat label="Eleves" value={item.studentCount} />
-        <Stat label="Affectes" value={`${item.assignmentRate}%`} />
-        <Stat label="Visites" value={`${item.visitRate}%`} />
-        <Stat label="Docs manquants" value={item.missingDocuments} className="col-span-3 sm:col-span-1" />
+        <Stat label="Placements" value={item.placementsCount} />
+        <Stat label="Termines" value={item.completedCount} />
+        {isProfPortal ? (
+          <Link
+            to="/prof/placements"
+            className="col-span-3 mt-1 inline-flex h-8 items-center justify-center rounded-md bg-[var(--color-brand-50)] text-xs font-medium text-[var(--color-brand-700)] hover:bg-[var(--color-brand-100)]"
+          >
+            Voir mes affectations
+          </Link>
+        ) : (
+          <Link
+            to="/admin/pfmp-periods/$id"
+            params={{ id: item.period.id }}
+            className="col-span-3 mt-1 inline-flex h-8 items-center justify-center rounded-md bg-[var(--color-brand-50)] text-xs font-medium text-[var(--color-brand-700)] hover:bg-[var(--color-brand-100)]"
+          >
+            Ouvrir la periode
+          </Link>
+        )}
       </CardBody>
     </Card>
   )

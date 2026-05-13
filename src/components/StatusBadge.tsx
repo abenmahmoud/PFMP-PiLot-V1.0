@@ -12,11 +12,11 @@ export function StageStatusBadge({ status }: { status: StageStatus }) {
   const tone =
     status === 'in_progress' || status === 'completed' || status === 'signed_convention'
       ? 'success'
-      : status === 'pending_convention' || status === 'found'
+      : status === 'confirmed' || status === 'pending_convention' || status === 'found'
         ? 'info'
-        : status === 'no_stage'
+        : status === 'draft' || status === 'no_stage'
           ? 'warning'
-          : status === 'interrupted'
+          : status === 'cancelled' || status === 'interrupted'
             ? 'danger'
             : 'neutral'
   return <Badge tone={tone} dot>{STAGE_STATUS_LABELS[status]}</Badge>
@@ -38,8 +38,12 @@ export function PeriodStatusBadge({ status }: { status: PeriodStatus }) {
   const tone =
     status === 'in_progress'
       ? 'info'
-      : status === 'preparation'
+      : status === 'draft' || status === 'preparation'
         ? 'warning'
+        : status === 'published'
+          ? 'brand'
+          : status === 'cancelled'
+            ? 'danger'
         : status === 'completed'
           ? 'success'
           : 'neutral'

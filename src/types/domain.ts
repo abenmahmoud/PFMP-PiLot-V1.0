@@ -44,21 +44,27 @@ export interface Class {
 }
 
 export type StageStatus =
+  | 'draft'
+  | 'confirmed'
   | 'no_stage'
   | 'found'
   | 'pending_convention'
   | 'signed_convention'
   | 'in_progress'
   | 'completed'
+  | 'cancelled'
   | 'interrupted'
 
 export const STAGE_STATUS_LABELS: Record<StageStatus, string> = {
+  draft: 'Brouillon',
+  confirmed: 'Confirmé',
   no_stage: 'Pas de stage',
   found: 'Stage trouvé',
   pending_convention: 'Convention en attente',
   signed_convention: 'Convention signée',
   in_progress: 'En stage',
   completed: 'Terminé',
+  cancelled: 'Annulé',
   interrupted: 'Interrompu',
 }
 
@@ -222,12 +228,22 @@ export interface CompanyIntelligenceSummary {
   topFamilies: Array<{ family: ProfessionalFamily; count: number }>
 }
 
-export type PeriodStatus = 'preparation' | 'in_progress' | 'completed' | 'archived'
+export type PeriodStatus =
+  | 'draft'
+  | 'published'
+  | 'preparation'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'archived'
 
 export const PERIOD_STATUS_LABELS: Record<PeriodStatus, string> = {
+  draft: 'Brouillon',
+  published: 'Publiée',
   preparation: 'En préparation',
   in_progress: 'En cours',
   completed: 'Terminée',
+  cancelled: 'Annulée',
   archived: 'Archivée',
 }
 
