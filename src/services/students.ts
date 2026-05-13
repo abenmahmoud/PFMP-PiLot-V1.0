@@ -91,23 +91,37 @@ export async function fetchStudents(
   const placementByStudentId = latestPlacementByStudent((placements as PlacementRow[]) ?? [])
   const selectedPlacements = [...placementByStudentId.values()]
   const companyIds = unique(selectedPlacements.map((placement) => placement.company_id))
-  const referentIds = unique(selectedPlacements.map((placement) => placement.referent_id))
+  const placementReferentIds = unique(selectedPlacements.map((placement) => placement.referent_id))
+  const studentReferentProfileIds = unique(students.map((student) => student.referent_id))
 
-  const [{ data: companies, error: companiesError }, { data: referents, error: referentsError }] =
+  const [
+    { data: companies, error: companiesError },
+    { data: placementReferents, error: placementReferentsError },
+    { data: studentReferents, error: studentReferentsError },
+  ] =
     await Promise.all([
       companyIds.length > 0
         ? sb.from('companies').select('*').in('id', companyIds)
         : Promise.resolve({ data: [], error: null }),
-      referentIds.length > 0
-        ? sb.from('teachers').select('*').in('id', referentIds)
+      placementReferentIds.length > 0
+        ? sb.from('teachers').select('*').in('id', placementReferentIds)
+        : Promise.resolve({ data: [], error: null }),
+      studentReferentProfileIds.length > 0
+        ? sb.from('teachers').select('*').in('profile_id', studentReferentProfileIds)
         : Promise.resolve({ data: [], error: null }),
     ])
 
   if (companiesError) throw new Error(`fetchStudents companies: ${companiesError.message}`)
-  if (referentsError) throw new Error(`fetchStudents referents: ${referentsError.message}`)
+  if (placementReferentsError) {
+    throw new Error(`fetchStudents placement referents: ${placementReferentsError.message}`)
+  }
+  if (studentReferentsError) {
+    throw new Error(`fetchStudents student referents: ${studentReferentsError.message}`)
+  }
 
   const companyById = indexById((companies as CompanyRow[]) ?? [])
-  const referentById = indexById((referents as TeacherRow[]) ?? [])
+  const placementReferentById = indexById((placementReferents as TeacherRow[]) ?? [])
+  const studentReferentByProfileId = indexByProfileId((studentReferents as TeacherRow[]) ?? [])
 
   return students
     .map((student) => {
@@ -117,7 +131,11 @@ export async function fetchStudents(
         class: student.class_id ? classById.get(student.class_id) ?? null : null,
         placement,
         company: placement?.company_id ? companyById.get(placement.company_id) ?? null : null,
-        referent: placement?.referent_id ? referentById.get(placement.referent_id) ?? null : null,
+        referent: student.referent_id
+          ? studentReferentByProfileId.get(student.referent_id) ?? null
+          : placement?.referent_id
+            ? placementReferentById.get(placement.referent_id) ?? null
+            : null,
         stageStatus: placement?.status ?? 'no_stage',
       }
     })
@@ -126,7 +144,13 @@ export async function fetchStudents(
         if (!item.class || item.class.principal_id !== profile.id) return false
       }
       if (filters.stageStatus && item.stageStatus !== filters.stageStatus) return false
-      if (filters.referentId && item.placement?.referent_id !== filters.referentId) return false
+      if (
+        filters.referentId &&
+        item.student.referent_id !== filters.referentId &&
+        item.placement?.referent_id !== filters.referentId
+      ) {
+        return false
+      }
       return true
     })
 }
@@ -217,9 +241,11 @@ export async function fetchStudentById(
     placement?.tutor_id
       ? sb.from('tutors').select('*').eq('id', placement.tutor_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    placement?.referent_id
-      ? sb.from('teachers').select('*').eq('id', placement.referent_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
+    student.referent_id
+      ? sb.from('teachers').select('*').eq('profile_id', student.referent_id).maybeSingle()
+      : placement?.referent_id
+        ? sb.from('teachers').select('*').eq('id', placement.referent_id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
   ])
 
   if (companyResult.error) {
@@ -261,6 +287,10 @@ function latestPlacementByStudent(placements: PlacementRow[]): Map<string, Place
 
 function indexById<T extends { id: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((row) => [row.id, row]))
+}
+
+function indexByProfileId(rows: TeacherRow[]): Map<string, TeacherRow> {
+  return new Map(rows.filter((row) => row.profile_id).map((row) => [row.profile_id as string, row]))
 }
 
 function unique(values: Array<string | null | undefined>): string[] {

@@ -1,77 +1,62 @@
 import { getSupabase } from '@/lib/supabase'
-import { getActiveEstablishmentScope } from '@/lib/auth'
-import type { ClassRow, TeacherAssignmentRow, TeacherRow } from '@/lib/database.types'
+import type { AuditLogRow, ClassRow, StudentRow } from '@/lib/database.types'
+import {
+  listTeachersForEstablishment,
+  type TeacherWithStats,
+} from '@/server/teachers.functions'
 
-export interface TeacherListItem {
-  teacher: TeacherRow
+export type TeacherDetail = {
+  teacher: TeacherWithStats
   classes: ClassRow[]
-  studentLoad: number
+  students: StudentRow[]
+  auditLogs: AuditLogRow[]
 }
 
-export async function fetchTeachers(): Promise<TeacherListItem[]> {
+export type TeacherListItem = TeacherWithStats
+
+export async function fetchTeachersWithStats(accessToken: string): Promise<TeacherWithStats[]> {
+  return listTeachersForEstablishment({ data: { accessToken } })
+}
+
+export async function fetchTeachers(accessToken?: string): Promise<TeacherWithStats[]> {
+  if (accessToken) return fetchTeachersWithStats(accessToken)
+  return []
+}
+
+export async function fetchTeacherDetail(
+  teacherId: string,
+  accessToken: string,
+): Promise<TeacherDetail | null> {
+  const teachers = await fetchTeachersWithStats(accessToken)
+  const teacher = teachers.find((item) => item.id === teacherId)
+  if (!teacher) return null
+
   const sb = getSupabase()
-  const scope = await getActiveEstablishmentScope()
-  let query = sb
-    .from('teachers')
-    .select('*')
-    .is('archived_at', null)
-    .order('last_name')
-    .order('first_name')
-
-  if (scope) query = query.eq('establishment_id', scope)
-
-  const { data, error } = await query
-
-  if (error) throw new Error(`fetchTeachers teachers: ${error.message}`)
-
-  const teachers = (data as TeacherRow[]) ?? []
-  if (teachers.length === 0) return []
-
-  const teacherIds = teachers.map((teacher) => teacher.id)
-  const profileIds = unique(teachers.map((teacher) => teacher.profile_id))
-
-  const [assignmentsResult, classesResult] = await Promise.all([
-    sb.from('teacher_assignments').select('*').in('teacher_id', teacherIds),
-    profileIds.length > 0
-      ? sb.from('classes').select('*').in('principal_id', profileIds).order('name')
+  const [classesResult, studentsResult, auditResult] = await Promise.all([
+    teacher.profile_id
+      ? sb.from('classes').select('*').eq('principal_id', teacher.profile_id).order('name')
+      : Promise.resolve({ data: [], error: null }),
+    teacher.profile_id
+      ? sb.from('students').select('*').eq('referent_id', teacher.profile_id).is('archived_at', null)
+      : Promise.resolve({ data: [], error: null }),
+    teacher.profile_id
+      ? sb
+          .from('audit_logs')
+          .select('*')
+          .eq('user_id', teacher.profile_id)
+          .order('created_at', { ascending: false })
+          .limit(20)
       : Promise.resolve({ data: [], error: null }),
   ])
 
-  if (assignmentsResult.error) {
-    throw new Error(`fetchTeachers assignments: ${assignmentsResult.error.message}`)
-  }
-  if (classesResult.error) throw new Error(`fetchTeachers classes: ${classesResult.error.message}`)
+  if (classesResult.error) throw new Error(`fetchTeacherDetail classes: ${classesResult.error.message}`)
+  if (studentsResult.error) throw new Error(`fetchTeacherDetail students: ${studentsResult.error.message}`)
+  if (auditResult.error) throw new Error(`fetchTeacherDetail audit: ${auditResult.error.message}`)
 
-  const assignmentsByTeacher = groupBy(
-    (assignmentsResult.data as TeacherAssignmentRow[]) ?? [],
-    (assignment) => assignment.teacher_id,
-  )
-  const classesByPrincipal = groupBy(
-    (classesResult.data as ClassRow[]) ?? [],
-    (klass) => klass.principal_id ?? '',
-  )
-
-  return teachers.map((teacher) => ({
+  return {
     teacher,
-    classes: teacher.profile_id ? classesByPrincipal.get(teacher.profile_id) ?? [] : [],
-    studentLoad: unique(
-      (assignmentsByTeacher.get(teacher.id) ?? []).map((assignment) => assignment.student_id),
-    ).length,
-  }))
-}
-
-function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
-  const map = new Map<string, T[]>()
-  for (const row of rows) {
-    const value = key(row)
-    if (!value) continue
-    const list = map.get(value) ?? []
-    list.push(row)
-    map.set(value, list)
+    classes: (classesResult.data as ClassRow[]) ?? [],
+    students: (studentsResult.data as StudentRow[]) ?? [],
+    auditLogs: (auditResult.data as AuditLogRow[]) ?? [],
   }
-  return map
-}
-
-function unique(values: Array<string | null | undefined>): string[] {
-  return [...new Set(values.filter(Boolean) as string[])]
 }

@@ -45,7 +45,7 @@ export const inviteUserToEstablishment = createServerFn({ method: 'POST' })
     return safeHandlerCall(async () => inviteUserToEstablishmentUnsafe(data))
   })
 
-async function inviteUserToEstablishmentUnsafe(
+export async function inviteUserToEstablishmentUnsafe(
   data: InviteUserToEstablishmentInput,
 ): Promise<InviteUserToEstablishmentResult> {
     const adminClient = createAdminClient()
@@ -278,6 +278,31 @@ async function ensureTeacherRowForPedagogicRole(
       })
       .eq('id', existing.id)
     if (updateError) throw new Error(`Mise a jour professeur impossible: ${updateError.message}`)
+    return
+  }
+
+  const { data: existingByEmail, error: emailSelectError } = await adminClient
+    .from('teachers')
+    .select('id')
+    .eq('establishment_id', input.establishmentId)
+    .eq('email', input.email)
+    .maybeSingle()
+
+  if (emailSelectError) {
+    throw new Error(`Verification professeur par email impossible: ${emailSelectError.message}`)
+  }
+
+  if (existingByEmail?.id) {
+    const { error: updateError } = await adminClient
+      .from('teachers')
+      .update({
+        profile_id: input.profileId,
+        first_name: input.firstName,
+        last_name: input.lastName,
+        email: input.email,
+      })
+      .eq('id', existingByEmail.id)
+    if (updateError) throw new Error(`Rattachement professeur impossible: ${updateError.message}`)
     return
   }
 

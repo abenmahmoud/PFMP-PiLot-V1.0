@@ -14,12 +14,14 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  UserCheck,
 } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
 import { AppLayout } from '@/components/AppLayout'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { SelectTeacher } from '@/components/teachers/SelectTeacher'
 import { StageStatusBadge, DocumentStatusBadge } from '@/components/StatusBadge'
 import { DocumentList } from '@/components/DocumentList'
 import { AlertList } from '@/components/AlertList'
@@ -31,6 +33,9 @@ import {
   fetchStudentById,
   type StudentDetail,
 } from '@/services/students'
+import { fetchTeachersWithStats } from '@/services/teachers'
+import { assignReferentToStudent } from '@/server/assignments.functions'
+import type { TeacherWithStats } from '@/server/teachers.functions'
 import {
   generateSingleStudentAccessCode,
   revokeStudentAccessCode,
@@ -66,6 +71,11 @@ function StudentDetailSupabase() {
   const [freshCode, setFreshCode] = useState<GeneratedStudentCode | null>(null)
   const [codeLoading, setCodeLoading] = useState(false)
   const [codeError, setCodeError] = useState<string | null>(null)
+  const [teachersOptions, setTeachersOptions] = useState<TeacherWithStats[]>([])
+  const [referentModalOpen, setReferentModalOpen] = useState(false)
+  const [selectedReferentTeacherId, setSelectedReferentTeacherId] = useState<string | null>(null)
+  const [referentLoading, setReferentLoading] = useState(false)
+  const [referentError, setReferentError] = useState<string | null>(null)
 
   useEffect(() => {
     if (auth.loading) return
@@ -78,9 +88,15 @@ function StudentDetailSupabase() {
     setLoading(true)
     setError(null)
 
-    fetchStudentById(id, auth.profile)
-      .then((nextDetail) => {
-        if (mounted) setDetail(nextDetail)
+    Promise.all([
+      fetchStudentById(id, auth.profile),
+      accessToken ? fetchTeachersWithStats(accessToken).catch(() => [] as TeacherWithStats[]) : Promise.resolve([]),
+    ])
+      .then(([nextDetail, nextTeachers]) => {
+        if (mounted) {
+          setDetail(nextDetail)
+          setTeachersOptions(nextTeachers)
+        }
       })
       .catch((e) => {
         if (mounted) setError(e instanceof Error ? e.message : String(e))
@@ -147,6 +163,33 @@ function StudentDetailSupabase() {
     }
   }
 
+  async function handleAssignReferent() {
+    if (!detail || !selectedReferentTeacherId) return
+    const selectedTeacher = teachersOptions.find((teacher) => teacher.id === selectedReferentTeacherId)
+    if (!selectedTeacher?.profile_id) {
+      setReferentError('Ce professeur n a pas encore de compte connecte.')
+      return
+    }
+    setReferentLoading(true)
+    setReferentError(null)
+    try {
+      await assignReferentToStudent({
+        data: {
+          accessToken,
+          studentId: detail.student.id,
+          referentId: selectedTeacher.profile_id,
+        },
+      })
+      const next = await fetchStudentById(id, auth.profile)
+      if (next) setDetail(next)
+      setReferentModalOpen(false)
+    } catch (e) {
+      setReferentError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setReferentLoading(false)
+    }
+  }
+
   if (auth.loading || loading) {
     return <BareDetailState title="Chargement de la fiche eleve" description="Lecture des donnees Supabase..." />
   }
@@ -187,6 +230,11 @@ function StudentDetailSupabase() {
 
   const student = detail.student
   const formation = student.formation ?? detail.class?.formation ?? '-'
+  const canAssignReferent =
+    auth.profile.role === 'admin' ||
+    auth.profile.role === 'ddfpt' ||
+    auth.profile.role === 'superadmin' ||
+    (auth.profile.role === 'principal' && detail.class?.principal_id === auth.profile.id)
 
   return (
     <AppLayout
@@ -273,6 +321,24 @@ function StudentDetailSupabase() {
           onGenerateCode={handleGenerateCode}
           onRegenerateCode={handleRegenerateCode}
           onRevokeCode={handleRevokeCode}
+        />
+
+        <ReferentAssignmentCard
+          detail={detail}
+          teachers={teachersOptions}
+          canAssign={canAssignReferent}
+          modalOpen={referentModalOpen}
+          selectedTeacherId={selectedReferentTeacherId}
+          loading={referentLoading}
+          error={referentError}
+          onOpen={() => {
+            const current = teachersOptions.find((teacher) => teacher.profile_id === detail.student.referent_id)
+            setSelectedReferentTeacherId(current?.id ?? null)
+            setReferentModalOpen(true)
+          }}
+          onClose={() => setReferentModalOpen(false)}
+          onSelect={setSelectedReferentTeacherId}
+          onConfirm={handleAssignReferent}
         />
 
         <Card>
@@ -475,6 +541,92 @@ function StudentDetailDemo() {
         </Card>
       </div>
     </AppLayout>
+  )
+}
+
+function ReferentAssignmentCard({
+  detail,
+  teachers,
+  canAssign,
+  modalOpen,
+  selectedTeacherId,
+  loading,
+  error,
+  onOpen,
+  onClose,
+  onSelect,
+  onConfirm,
+}: {
+  detail: StudentDetail
+  teachers: TeacherWithStats[]
+  canAssign: boolean
+  modalOpen: boolean
+  selectedTeacherId: string | null
+  loading: boolean
+  error: string | null
+  onOpen: () => void
+  onClose: () => void
+  onSelect: (teacherId: string | null) => void
+  onConfirm: () => void | Promise<void>
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle icon={<UserCheck className="w-4 h-4" />}>Referent PFMP</CardTitle>
+        {detail.referent ? <Badge tone="success">Assigne</Badge> : <Badge tone="warning">Non assigne</Badge>}
+      </CardHeader>
+      <CardBody className="space-y-4">
+        {detail.referent ? (
+          <div>
+            <p className="font-medium text-[var(--color-text)]">
+              {detail.referent.first_name} {detail.referent.last_name}
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {detail.referent.email ?? 'Email non renseigne'}
+              {detail.referent.discipline ? ` - ${detail.referent.discipline}` : ''}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Aucun referent PFMP n'est encore affecte a cet eleve.
+          </p>
+        )}
+
+        {canAssign && (
+          <Button type="button" size="sm" variant="secondary" onClick={onOpen}>
+            {detail.referent ? 'Changer le referent' : 'Assigner referent'}
+          </Button>
+        )}
+
+        {modalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <Card className="w-full max-w-xl">
+              <CardHeader>
+                <CardTitle>Assigner un referent PFMP</CardTitle>
+              </CardHeader>
+              <CardBody className="space-y-4">
+                <SelectTeacher
+                  teachers={teachers}
+                  value={selectedTeacherId}
+                  roles={['referent', 'principal']}
+                  allowNone={false}
+                  onChange={onSelect}
+                />
+                {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+                    Annuler
+                  </Button>
+                  <Button type="button" onClick={onConfirm} disabled={loading || !selectedTeacherId}>
+                    {loading ? 'Affectation...' : 'Confirmer'}
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        )}
+      </CardBody>
+    </Card>
   )
 }
 
