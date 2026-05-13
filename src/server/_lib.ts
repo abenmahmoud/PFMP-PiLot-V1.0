@@ -46,7 +46,7 @@ export function clean(value: unknown): string {
 
 export function validateUuid(value: unknown, label: string): string {
   const uuid = clean(value)
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(uuid)) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid)) {
     throw new Error(`${label} invalide.`)
   }
   return uuid
