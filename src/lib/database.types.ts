@@ -128,6 +128,7 @@ export interface TeacherRow {
   last_name: string
   email: string | null
   phone: string | null
+  discipline: string | null
   archived_at: string | null
   created_at: string
   updated_at: string

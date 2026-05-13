@@ -181,6 +181,16 @@ export function canWriteDocuments(s: SessionContext): boolean {
   return isSuperadmin(s) || isEstablishmentAdmin(s)
 }
 
+/** Peut-il gerer l'annuaire professeurs ? */
+export function canManageTeachers(s: SessionContext): boolean {
+  return isSuperadmin(s) || isEstablishmentAdmin(s)
+}
+
+/** Peut-il affecter le professeur principal d'une classe ? */
+export function canAssignClassPrincipal(s: SessionContext): boolean {
+  return isSuperadmin(s) || isEstablishmentAdmin(s)
+}
+
 /** Peut-il supprimer une entité ? (en RLS, seul le superadmin peut delete) */
 export function canDelete(s: SessionContext): boolean {
   return isSuperadmin(s)

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { ProfileRow } from '@/lib/database.types'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -49,4 +50,43 @@ export function validateUuid(value: unknown, label: string): string {
     throw new Error(`${label} invalide.`)
   }
   return uuid
+}
+
+export async function getCallerProfile(
+  adminClient: AdminClient,
+  accessToken: string,
+): Promise<ProfileRow> {
+  const { data: userResult, error: userError } = await adminClient.auth.getUser(accessToken)
+  const caller = userResult.user
+  if (userError || !caller) throw new Error('Session invalide. Reconnectez-vous.')
+
+  const { data: profile, error } = await adminClient
+    .from('profiles')
+    .select('*')
+    .eq('id', caller.id)
+    .maybeSingle()
+
+  if (error) throw new Error(`Lecture profil appelant impossible: ${error.message}`)
+  if (!profile) throw new Error('Profil appelant introuvable.')
+  return profile as unknown as ProfileRow
+}
+
+export async function insertAuditLog(
+  adminClient: AdminClient,
+  input: {
+    establishmentId: string | null
+    userId: string | null
+    action: string
+    description: string
+    metadata?: Record<string, unknown>
+  },
+): Promise<void> {
+  const { error } = await adminClient.from('audit_logs').insert({
+    establishment_id: input.establishmentId,
+    user_id: input.userId,
+    action: input.action,
+    description: input.description,
+    metadata: input.metadata ?? {},
+  })
+  if (error) throw new Error(`Audit log impossible: ${error.message}`)
 }

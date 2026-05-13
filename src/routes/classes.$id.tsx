@@ -15,11 +15,13 @@ import {
 import { AppLayout } from '@/components/AppLayout'
 import { EmptyState } from '@/components/EmptyState'
 import { RoleGuard } from '@/components/RoleGuard'
+import { SelectTeacher } from '@/components/teachers/SelectTeacher'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useAuth } from '@/lib/AuthProvider'
 import { isDemoMode } from '@/lib/supabase'
+import { assignClassPrincipal } from '@/server/assignments.functions'
 import {
   generateClassStudentAccessCodes,
   generateSingleStudentAccessCode,
@@ -30,6 +32,8 @@ import {
   type GeneratedStudentCode,
   type StudentAccessStatus,
 } from '@/server/studentAccessCodes.functions'
+import type { TeacherWithStats } from '@/server/teachers.functions'
+import { fetchTeachersWithStats } from '@/services/teachers'
 import { classes as demoClasses, students as demoStudents } from '@/data/demo'
 
 export const Route = createFileRoute('/classes/$id')({ component: ClassDetailPage })
@@ -55,6 +59,9 @@ function ClassAccessSupabase({ classId }: { classId: string }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [teachers, setTeachers] = useState<TeacherWithStats[]>([])
+  const [principalModalOpen, setPrincipalModalOpen] = useState(false)
+  const [selectedPrincipalTeacherId, setSelectedPrincipalTeacherId] = useState<string | null>(null)
 
   useEffect(() => {
     if (auth.loading) return
@@ -67,9 +74,15 @@ function ClassAccessSupabase({ classId }: { classId: string }) {
     setLoading(true)
     setError(null)
 
-    listClassStudentAccess({ data: { accessToken, classId } })
-      .then((nextDetail) => {
-        if (mounted) setDetail(nextDetail)
+    Promise.all([
+      listClassStudentAccess({ data: { accessToken, classId } }),
+      fetchTeachersWithStats(accessToken).catch(() => [] as TeacherWithStats[]),
+    ])
+      .then(([nextDetail, nextTeachers]) => {
+        if (mounted) {
+          setDetail(nextDetail)
+          setTeachers(nextTeachers)
+        }
       })
       .catch((e) => {
         if (mounted) setError(e instanceof Error ? e.message : String(e))
@@ -147,6 +160,15 @@ function ClassAccessSupabase({ classId }: { classId: string }) {
     })
   }
 
+  async function assignPrincipal(teacherId: string | null) {
+    await runAction('principal', async () => {
+      await assignClassPrincipal({ data: { accessToken, classId, teacherId } })
+      setSuccess(teacherId ? 'Professeur principal affecte.' : 'Professeur principal retire.')
+      setPrincipalModalOpen(false)
+      return null
+    })
+  }
+
   if (auth.loading || loading) {
     return (
       <EmptyState
@@ -200,6 +222,17 @@ function ClassAccessSupabase({ classId }: { classId: string }) {
       onRegenerateAll={regenerateAll}
       onRegenerateOne={regenerateOne}
       onRevokeOne={revokeOne}
+      teachers={teachers}
+      principalModalOpen={principalModalOpen}
+      selectedPrincipalTeacherId={selectedPrincipalTeacherId}
+      onOpenPrincipalModal={() => {
+        const current = teachers.find((teacher) => teacher.profile_id === detail.class.principal_id)
+        setSelectedPrincipalTeacherId(current?.id ?? null)
+        setPrincipalModalOpen(true)
+      }}
+      onClosePrincipalModal={() => setPrincipalModalOpen(false)}
+      onSelectPrincipal={setSelectedPrincipalTeacherId}
+      onAssignPrincipal={() => assignPrincipal(selectedPrincipalTeacherId)}
     />
   )
 }
@@ -322,6 +355,13 @@ function ClassAccessDemo({ classId }: { classId: string }) {
           return next
         })
       }}
+      teachers={[]}
+      principalModalOpen={false}
+      selectedPrincipalTeacherId={null}
+      onOpenPrincipalModal={() => undefined}
+      onClosePrincipalModal={() => undefined}
+      onSelectPrincipal={() => undefined}
+      onAssignPrincipal={() => undefined}
     />
   )
 }
@@ -336,6 +376,13 @@ function ClassAccessView({
   onRegenerateAll,
   onRegenerateOne,
   onRevokeOne,
+  teachers,
+  principalModalOpen,
+  selectedPrincipalTeacherId,
+  onOpenPrincipalModal,
+  onClosePrincipalModal,
+  onSelectPrincipal,
+  onAssignPrincipal,
 }: {
   detail: ClassStudentAccessResult
   generatedCodes: GeneratedStudentCode[]
@@ -346,8 +393,16 @@ function ClassAccessView({
   onRegenerateAll: () => void | Promise<void>
   onRegenerateOne: (studentId: string) => void | Promise<void>
   onRevokeOne: (studentId: string) => void | Promise<void>
+  teachers: TeacherWithStats[]
+  principalModalOpen: boolean
+  selectedPrincipalTeacherId: string | null
+  onOpenPrincipalModal: () => void
+  onClosePrincipalModal: () => void
+  onSelectPrincipal: (teacherId: string | null) => void
+  onAssignPrincipal: () => void | Promise<void>
 }) {
   const stats = useMemo(() => buildStats(detail.students), [detail.students])
+  const principal = teachers.find((teacher) => teacher.profile_id === detail.class.principal_id) ?? null
 
   return (
     <div className="space-y-5">
@@ -406,6 +461,68 @@ function ClassAccessView({
       )}
 
       {generatedCodes.length > 0 && <PrintableCodes codes={generatedCodes} />}
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Professeur principal</CardTitle>
+            <CardDescription className="mt-1">
+              Le professeur principal peut gerer les codes et les affectations de sa classe.
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={onOpenPrincipalModal}
+            disabled={Boolean(actionLoading)}
+          >
+            {principal ? 'Changer' : 'Assigner'}
+          </Button>
+        </CardHeader>
+        <CardBody>
+          {principal ? (
+            <div className="rounded-lg border border-[var(--color-border)] p-3">
+              <div>
+                <p className="font-medium text-[var(--color-text)]">
+                  {principal.first_name} {principal.last_name}
+                </p>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  {principal.email ?? 'Email non renseigne'} {principal.discipline ? `- ${principal.discipline}` : ''}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--color-text-muted)]">Aucun professeur principal affecte.</p>
+          )}
+        </CardBody>
+      </Card>
+
+      {principalModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-xl">
+            <CardHeader>
+              <CardTitle>Assigner le professeur principal</CardTitle>
+            </CardHeader>
+            <CardBody className="space-y-4">
+              <SelectTeacher
+                teachers={teachers}
+                value={selectedPrincipalTeacherId}
+                roles={['principal', 'admin', 'ddfpt']}
+                onChange={onSelectPrincipal}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={onClosePrincipalModal}>
+                  Annuler
+                </Button>
+                <Button type="button" onClick={onAssignPrincipal} disabled={Boolean(actionLoading)}>
+                  {actionLoading === 'principal' ? 'Affectation...' : 'Confirmer'}
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
