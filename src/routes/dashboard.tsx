@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, redirect } from '@tanstack/react-router'
 import {
   AlertTriangle,
   Building2,
@@ -44,13 +44,18 @@ import {
 } from '@/data/demo'
 import { PROFESSIONAL_FAMILY_LABELS, type ProfessionalFamily } from '@/types'
 
-export const Route = createFileRoute('/dashboard')({ component: DashboardPage })
+export const Route = createFileRoute('/dashboard')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/dashboard' })
+  },
+  component: DashboardPage,
+})
 
 const TEACHER_OVERLOAD_THRESHOLD = 6
 const DASHBOARD_LOAD_TIMEOUT_MS = 12000
 const AUTH_LOAD_TIMEOUT_MS = 8000
 
-function DashboardPage() {
+export function DashboardPage() {
   if (isDemoMode()) return <DashboardDemo />
   return <DashboardSupabase />
 }

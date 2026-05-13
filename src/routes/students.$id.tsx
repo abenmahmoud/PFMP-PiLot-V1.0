@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
@@ -54,15 +54,24 @@ import {
   activityLog,
 } from '@/data/demo'
 
-export const Route = createFileRoute('/students/$id')({ component: StudentDetailPage })
+export const Route = createFileRoute('/students/$id')({
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/admin/students/$id', params })
+  },
+  component: StudentDetailPage,
+})
 
-function StudentDetailPage() {
-  if (isDemoMode()) return <StudentDetailDemo />
-  return <StudentDetailSupabase />
+export function StudentDetailPage() {
+  const { id } = useParams({ from: '/students/$id' })
+  return <StudentDetailContent id={id} />
 }
 
-function StudentDetailSupabase() {
-  const { id } = useParams({ from: '/students/$id' })
+export function StudentDetailContent({ id }: { id: string }) {
+  if (isDemoMode()) return <StudentDetailDemo id={id} />
+  return <StudentDetailSupabase id={id} />
+}
+
+function StudentDetailSupabase({ id }: { id: string }) {
   const auth = useAuth()
   const [detail, setDetail] = useState<StudentDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -375,8 +384,7 @@ function StudentDetailSupabase() {
   )
 }
 
-function StudentDetailDemo() {
-  const { id } = useParams({ from: '/students/$id' })
+function StudentDetailDemo({ id }: { id: string }) {
   const student = students.find((s) => s.id === id)
 
   if (!student) {

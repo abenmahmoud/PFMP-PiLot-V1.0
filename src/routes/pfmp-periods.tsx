@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Calendar, Plus } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -11,11 +11,16 @@ import { isDemoMode } from '@/lib/supabase'
 import { fetchPfmpPeriods, type PfmpPeriodListItem } from '@/services/pfmpPeriods'
 import { classes, pfmpPeriods } from '@/data/demo'
 
-export const Route = createFileRoute('/pfmp-periods')({ component: PeriodsPage })
+export const Route = createFileRoute('/pfmp-periods')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/pfmp-periods' })
+  },
+  component: PeriodsPage,
+})
 
 const LOAD_TIMEOUT_MS = 12000
 
-function PeriodsPage() {
+export function PeriodsPage() {
   if (isDemoMode()) return <PeriodsDemo />
   return <PeriodsSupabase />
 }

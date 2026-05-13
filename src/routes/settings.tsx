@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Building2, FileText, Shield, Sparkles } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -18,13 +18,18 @@ import {
 } from '@/services/settings'
 import { establishments, ESTABLISHMENT_ID } from '@/data/demo'
 
-export const Route = createFileRoute('/settings')({ component: SettingsPage })
+export const Route = createFileRoute('/settings')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/settings' })
+  },
+  component: SettingsPage,
+})
 
 const LOAD_TIMEOUT_MS = 12000
 const DEFAULT_RGPD_NOTICE =
   "Les informations recueillies sont traitees par le lycee a des fins exclusivement pedagogiques. Conformement au RGPD, vous disposez d'un droit d'acces, de rectification et de suppression."
 
-function SettingsPage() {
+export function SettingsPage() {
   if (isDemoMode()) return <SettingsDemo />
   return <SettingsSupabase />
 }

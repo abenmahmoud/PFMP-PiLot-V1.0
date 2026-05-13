@@ -1,4 +1,4 @@
-import { Outlet, createFileRoute, Link, useMatchRoute } from '@tanstack/react-router'
+import { Navigate, Outlet, createFileRoute, Link, useMatchRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Archive, Edit3, FileSpreadsheet, Mail, Plus, UserCog } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -26,15 +26,18 @@ export const Route = createFileRoute('/teachers')({ component: TeachersPage })
 
 const LOAD_TIMEOUT_MS = 12000
 
-function TeachersPage() {
+export function TeachersPage() {
   const matchRoute = useMatchRoute()
   const isOnChild = matchRoute({ to: '/teachers/$id', fuzzy: true })
   if (isOnChild) return <Outlet />
+  if (!matchRoute({ to: '/admin/teachers', fuzzy: true })) {
+    return <Navigate to="/admin/teachers" replace />
+  }
   if (isDemoMode()) return <TeachersDemo />
   return <TeachersSupabase />
 }
 
-function TeachersSupabase() {
+export function TeachersSupabase() {
   const auth = useAuth()
   const accessToken = auth.session?.access_token ?? ''
   const [rows, setRows] = useState<TeacherWithStats[]>([])
@@ -269,7 +272,7 @@ function TeachersSupabase() {
   )
 }
 
-function TeachersDemo() {
+export function TeachersDemo() {
   return (
     <AppLayout title="Professeurs" subtitle={`${teachers.length} professeurs - mode demo`}>
       <DataTable

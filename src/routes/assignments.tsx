@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Network } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -20,12 +20,17 @@ import {
 } from '@/services/assignments'
 import { classes, pfmpPeriods, students, teachers, companies } from '@/data/demo'
 
-export const Route = createFileRoute('/assignments')({ component: AssignmentsPage })
+export const Route = createFileRoute('/assignments')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/assignments' })
+  },
+  component: AssignmentsPage,
+})
 
 const LOAD_TIMEOUT_MS = 12000
 const TEACHER_LOAD_THRESHOLD = 6
 
-function AssignmentsPage() {
+export function AssignmentsPage() {
   if (isDemoMode()) return <AssignmentsDemo />
   return <AssignmentsSupabase />
 }

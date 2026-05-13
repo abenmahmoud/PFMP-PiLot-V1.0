@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useParams } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import {
@@ -36,11 +36,19 @@ import type { TeacherWithStats } from '@/server/teachers.functions'
 import { fetchTeachersWithStats } from '@/services/teachers'
 import { classes as demoClasses, students as demoStudents } from '@/data/demo'
 
-export const Route = createFileRoute('/classes/$id')({ component: ClassDetailPage })
+export const Route = createFileRoute('/classes/$id')({
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/admin/classes/$id', params })
+  },
+  component: ClassDetailPage,
+})
 
-function ClassDetailPage() {
+export function ClassDetailPage() {
   const { id } = useParams({ from: '/classes/$id' })
+  return <ClassDetailContent id={id} />
+}
 
+export function ClassDetailContent({ id }: { id: string }) {
   return (
     <AppLayout title="Classe" subtitle="Codes eleves et acces sans email">
       <RoleGuard allow={['admin', 'ddfpt', 'principal', 'superadmin']}>

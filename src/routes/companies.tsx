@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, Navigate, Outlet, useMatchRoute, useRouterState } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, AlertTriangle, Building2, Mail, Phone, Plus, Star, Users } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -58,12 +58,18 @@ const RESPONSIVENESS_TONE: Record<TutorResponsiveness, BadgeTone> = {
   unknown: 'neutral',
 }
 
-function CompaniesPage() {
+export function CompaniesPage() {
+  const matchRoute = useMatchRoute()
+  const isOnChild = matchRoute({ to: '/companies/$id', fuzzy: true })
+  if (isOnChild) return <Outlet />
+  if (!matchRoute({ to: '/admin/companies', fuzzy: true }) && !matchRoute({ to: '/prof/companies', fuzzy: true })) {
+    return <Navigate to="/admin/companies" replace />
+  }
   if (isDemoMode()) return <CompaniesDemo />
   return <CompaniesSupabase />
 }
 
-function CompaniesSupabase() {
+export function CompaniesSupabase() {
   const auth = useAuth()
   const [query, setQuery] = useState('')
   const [familyFilter, setFamilyFilter] = useState<'all' | ProfessionalFamily>('all')
@@ -170,7 +176,7 @@ function CompaniesSupabase() {
   )
 }
 
-function CompaniesDemo() {
+export function CompaniesDemo() {
   const [query, setQuery] = useState('')
   const [familyFilter, setFamilyFilter] = useState<'all' | ProfessionalFamily>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | CompanyStatus>('all')
@@ -374,6 +380,8 @@ function CompaniesFilters({
 }
 
 function CompanySupabaseCard({ item }: { item: CompanyListItem }) {
+  const router = useRouterState()
+  const isProfPortal = router.location.pathname.startsWith('/prof')
   const company = item.company
   const status = asCompanyStatus(company.status)
   const reliability = asCompanyReliability(company.reliability)
@@ -385,7 +393,7 @@ function CompanySupabaseCard({ item }: { item: CompanyListItem }) {
         <div className="min-w-0">
           <CardTitle icon={<Building2 className="w-4 h-4" />}>
             <Link
-              to="/companies/$id"
+              to={isProfPortal ? '/prof/companies/$id' : '/admin/companies/$id'}
               params={{ id: company.id }}
               className="hover:text-[var(--color-brand-700)]"
             >

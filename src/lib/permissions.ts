@@ -213,17 +213,32 @@ export function canAccessSuperadmin(s: SessionContext): boolean {
 export function getHomePathForRole(role: UserRole | null): string {
   switch (role) {
     case 'superadmin':
-      return '/superadmin'
+      return '/admin/dashboard'
     case 'referent':
     case 'principal':
-      return '/my-students'
+      return '/prof/dashboard'
     case 'admin':
     case 'ddfpt':
-      return '/dashboard'
+      return '/admin/dashboard'
     case 'tuteur':
     case 'eleve':
-      return '/my-account' // page future
+      return '/eleve'
     default:
-      return '/login'
+      return '/'
   }
+}
+
+export function isAdminPortalRole(role: UserRole | null): boolean {
+  return role === 'admin' || role === 'ddfpt' || role === 'superadmin'
+}
+
+export function isProfPortalRole(role: UserRole | null): boolean {
+  return role === 'principal' || role === 'referent'
+}
+
+export function getLoginPathForRole(role: UserRole | null): string {
+  if (isAdminPortalRole(role)) return '/admin/login'
+  if (isProfPortalRole(role)) return '/prof/login'
+  if (role === 'eleve') return '/eleve'
+  return '/'
 }

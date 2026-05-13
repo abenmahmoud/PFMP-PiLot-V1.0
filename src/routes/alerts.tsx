@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, Bell, CheckCircle2, Sparkles, AlertTriangle } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -13,13 +13,18 @@ import { fetchAlerts, resolveAlert } from '@/services/alerts'
 import type { AlertRow } from '@/lib/database.types'
 import { alerts as allAlerts } from '@/data/demo'
 
-export const Route = createFileRoute('/alerts')({ component: AlertsPage })
+export const Route = createFileRoute('/alerts')({
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/alerts' })
+  },
+  component: AlertsPage,
+})
 
 const LOAD_TIMEOUT_MS = 12000
 
 type AlertTab = 'active' | 'urgent' | 'problem' | 'vigilance' | 'resolved'
 
-function AlertsPage() {
+export function AlertsPage() {
   if (isDemoMode()) return <AlertsDemo />
   return <AlertsSupabase />
 }
