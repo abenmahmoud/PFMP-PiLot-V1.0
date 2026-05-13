@@ -74,132 +74,140 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 export const listClassStudentAccess = createServerFn({ method: 'POST' })
   .inputValidator(validateClassInput)
   .handler(async ({ data }): Promise<ClassStudentAccessResult> => {
-    const adminClient = createAdminClient()
-    const caller = await getCallerProfile(adminClient, data.accessToken)
-    const context = await loadClassContext(adminClient, data.classId)
-    assertClassManagePermission(caller, context.class)
-    return buildClassStudentAccessResult(context.class, context.students, context.codes)
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      const context = await loadClassContext(adminClient, data.classId)
+      assertClassManagePermission(caller, context.class)
+      return buildClassStudentAccessResult(context.class, context.students, context.codes)
+    })
   })
 
 export const generateClassStudentAccessCodes = createServerFn({ method: 'POST' })
   .inputValidator(validateGenerateClassInput)
   .handler(async ({ data }): Promise<GenerateStudentCodesResult> => {
-    const adminClient = createAdminClient()
-    const caller = await getCallerProfile(adminClient, data.accessToken)
-    const context = await loadClassContext(adminClient, data.classId)
-    assertClassManagePermission(caller, context.class)
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      const context = await loadClassContext(adminClient, data.classId)
+      assertClassManagePermission(caller, context.class)
 
-    const activeByStudent = activeCodeByStudent(context.codes)
-    const targetStudents =
-      data.mode === 'all'
-        ? context.students
-        : context.students.filter((student) => !activeByStudent.has(student.id))
+      const activeByStudent = activeCodeByStudent(context.codes)
+      const targetStudents =
+        data.mode === 'all'
+          ? context.students
+          : context.students.filter((student) => !activeByStudent.has(student.id))
 
-    const studentIdsToRevoke =
-      data.mode === 'all'
-        ? context.students.map((student) => student.id).filter((id) => activeByStudent.has(id))
-        : []
+      const studentIdsToRevoke =
+        data.mode === 'all'
+          ? context.students.map((student) => student.id).filter((id) => activeByStudent.has(id))
+          : []
 
-    const revokedCount = await revokeActiveCodes(adminClient, {
-      classId: context.class.id,
-      studentIds: studentIdsToRevoke,
+      const revokedCount = await revokeActiveCodes(adminClient, {
+        classId: context.class.id,
+        studentIds: studentIdsToRevoke,
+      })
+
+      const generatedCodes = await createCodesForStudents(adminClient, {
+        caller,
+        klass: context.class,
+        students: targetStudents,
+      })
+
+      await insertAuditLog(adminClient, {
+        caller,
+        establishmentId: context.class.establishment_id,
+        action: 'student_access_codes.class_generated',
+        description: `Codes eleves generes pour ${context.class.name}`,
+        metadata: {
+          class_id: context.class.id,
+          class_name: context.class.name,
+          mode: data.mode,
+          generated_count: generatedCodes.length,
+          revoked_count: revokedCount,
+          source: 'server.student_access_codes',
+        },
+      })
+
+      return {
+        generatedCodes,
+        skippedCount: data.mode === 'missing' ? context.students.length - generatedCodes.length : 0,
+        revokedCount,
+      }
     })
-
-    const generatedCodes = await createCodesForStudents(adminClient, {
-      caller,
-      klass: context.class,
-      students: targetStudents,
-    })
-
-    await insertAuditLog(adminClient, {
-      caller,
-      establishmentId: context.class.establishment_id,
-      action: 'student_access_codes.class_generated',
-      description: `Codes eleves generes pour ${context.class.name}`,
-      metadata: {
-        class_id: context.class.id,
-        class_name: context.class.name,
-        mode: data.mode,
-        generated_count: generatedCodes.length,
-        revoked_count: revokedCount,
-        source: 'server.student_access_codes',
-      },
-    })
-
-    return {
-      generatedCodes,
-      skippedCount: data.mode === 'missing' ? context.students.length - generatedCodes.length : 0,
-      revokedCount,
-    }
   })
 
 export const generateSingleStudentAccessCode = createServerFn({ method: 'POST' })
   .inputValidator(validateSingleStudentInput)
   .handler(async ({ data }): Promise<GenerateStudentCodesResult> => {
-    const adminClient = createAdminClient()
-    const caller = await getCallerProfile(adminClient, data.accessToken)
-    const context = await loadClassContext(adminClient, data.classId)
-    assertClassManagePermission(caller, context.class)
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      const context = await loadClassContext(adminClient, data.classId)
+      assertClassManagePermission(caller, context.class)
 
-    const student = context.students.find((item) => item.id === data.studentId)
-    if (!student) throw new Error('Eleve introuvable dans cette classe.')
+      const student = context.students.find((item) => item.id === data.studentId)
+      if (!student) throw new Error('Eleve introuvable dans cette classe.')
 
-    const revokedCount = await revokeActiveCodes(adminClient, {
-      classId: context.class.id,
-      studentIds: [student.id],
+      const revokedCount = await revokeActiveCodes(adminClient, {
+        classId: context.class.id,
+        studentIds: [student.id],
+      })
+      const generatedCodes = await createCodesForStudents(adminClient, {
+        caller,
+        klass: context.class,
+        students: [student],
+      })
+
+      await insertAuditLog(adminClient, {
+        caller,
+        establishmentId: context.class.establishment_id,
+        action: 'student_access_codes.student_generated',
+        description: `Code eleve regenere pour ${student.first_name} ${student.last_name}`,
+        metadata: {
+          class_id: context.class.id,
+          student_id: student.id,
+          revoked_count: revokedCount,
+          source: 'server.student_access_codes',
+        },
+      })
+
+      return { generatedCodes, skippedCount: 0, revokedCount }
     })
-    const generatedCodes = await createCodesForStudents(adminClient, {
-      caller,
-      klass: context.class,
-      students: [student],
-    })
-
-    await insertAuditLog(adminClient, {
-      caller,
-      establishmentId: context.class.establishment_id,
-      action: 'student_access_codes.student_generated',
-      description: `Code eleve regenere pour ${student.first_name} ${student.last_name}`,
-      metadata: {
-        class_id: context.class.id,
-        student_id: student.id,
-        revoked_count: revokedCount,
-        source: 'server.student_access_codes',
-      },
-    })
-
-    return { generatedCodes, skippedCount: 0, revokedCount }
   })
 
 export const revokeStudentAccessCode = createServerFn({ method: 'POST' })
   .inputValidator(validateSingleStudentInput)
   .handler(async ({ data }): Promise<{ ok: true; revokedCount: number }> => {
-    const adminClient = createAdminClient()
-    const caller = await getCallerProfile(adminClient, data.accessToken)
-    const context = await loadClassContext(adminClient, data.classId)
-    assertClassManagePermission(caller, context.class)
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      const context = await loadClassContext(adminClient, data.classId)
+      assertClassManagePermission(caller, context.class)
 
-    const student = context.students.find((item) => item.id === data.studentId)
-    if (!student) throw new Error('Eleve introuvable dans cette classe.')
+      const student = context.students.find((item) => item.id === data.studentId)
+      if (!student) throw new Error('Eleve introuvable dans cette classe.')
 
-    const revokedCount = await revokeActiveCodes(adminClient, {
-      classId: context.class.id,
-      studentIds: [student.id],
+      const revokedCount = await revokeActiveCodes(adminClient, {
+        classId: context.class.id,
+        studentIds: [student.id],
+      })
+
+      await insertAuditLog(adminClient, {
+        caller,
+        establishmentId: context.class.establishment_id,
+        action: 'student_access_codes.revoked',
+        description: `Code eleve revoque pour ${student.first_name} ${student.last_name}`,
+        metadata: {
+          class_id: context.class.id,
+          student_id: student.id,
+          revoked_count: revokedCount,
+          source: 'server.student_access_codes',
+        },
+      })
+
+      return { ok: true, revokedCount }
     })
-
-    await insertAuditLog(adminClient, {
-      caller,
-      establishmentId: context.class.establishment_id,
-      action: 'student_access_codes.revoked',
-      description: `Code eleve revoque pour ${student.first_name} ${student.last_name}`,
-      metadata: {
-        class_id: context.class.id,
-        student_id: student.id,
-        revoked_count: revokedCount,
-        source: 'server.student_access_codes',
-      },
-    })
-
-    return { ok: true, revokedCount }
   })
 
 function validateClassInput(raw: unknown): ClassStudentAccessInput {
@@ -318,17 +326,45 @@ function buildClassStudentAccessResult(
   codes: StudentAccessCodeRow[],
 ): ClassStudentAccessResult {
   const latestByStudent = latestCodeByStudent(codes)
-  return sanitizeForSeroval({
+  return {
     class: klass,
     students: students.map((student) => ({
       student,
       accessCode: toAccessStatus(latestByStudent.get(student.id) ?? null),
     })),
-  })
+  }
 }
 
-function sanitizeForSeroval<T>(data: T): T {
+/**
+ * Sérialise n'importe quel objet en plain JSON (élimine undefined, classes,
+ * Symbols, prototypes Supabase, etc.) AVANT que Seroval ne tente sa propre
+ * sérialisation. Sans ça, Seroval crash en step 3 sur les objets Supabase
+ * qui contiennent des propriétés non-énumérables ou des prototypes.
+ */
+function toPlainJson<T>(data: T): T {
   return JSON.parse(JSON.stringify(data, (_key, value) => (value === undefined ? null : value))) as T
+}
+
+/**
+ * Wrapper safe pour les handlers de server functions.
+ * - Garantit que le retour est un plain JSON (compatible Seroval)
+ * - Garantit que les erreurs sont des Error simples avec un message string pur
+ *   (pas de stack contenant des objets Supabase, pas de cause chainée)
+ */
+async function safeHandlerCall<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    const result = await fn()
+    return toPlainJson(result)
+  } catch (err) {
+    const message =
+      err instanceof Error && typeof err.message === 'string' && err.message.length > 0
+        ? err.message
+        : 'Erreur serveur inattendue.'
+    // Log côté serveur uniquement (les détails ne traversent pas le réseau)
+    console.error('[server-fn]', message, err)
+    // Re-throw avec un Error 100% sérialisable
+    throw new Error(message)
+  }
 }
 
 function latestCodeByStudent(codes: StudentAccessCodeRow[]): Map<string, StudentAccessCodeRow> {
