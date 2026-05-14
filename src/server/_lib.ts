@@ -68,7 +68,33 @@ export async function getCallerProfile(
 
   if (error) throw new Error(`Lecture profil appelant impossible: ${error.message}`)
   if (!profile) throw new Error('Profil appelant introuvable.')
-  return profile as unknown as ProfileRow
+  const profileRow = profile as unknown as ProfileRow
+
+  // Hotfix: pour les superadmin qui ont selectionne un etablissement actif via
+  // le tenant switcher (stocke dans user_metadata.active_establishment_id),
+  // injecter cet etablissement dans le caller.establishment_id afin que
+  // toutes les helpers existantes (resolveReadableEstablishment,
+  // resolveEstablishmentId, etc.) fonctionnent sans modification.
+  if (profileRow.role === 'superadmin' && !profileRow.establishment_id) {
+    const metadata = caller.user_metadata as { active_establishment_id?: unknown; active_establishment_expires_at?: unknown } | null
+    const activeId = metadata?.active_establishment_id
+    const expiresAt = metadata?.active_establishment_expires_at
+    if (typeof activeId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(activeId)) {
+      // Si expires_at est present et expire, on ignore (la session devrait refresh)
+      let isValid = true
+      if (typeof expiresAt === 'string') {
+        const expiry = new Date(expiresAt)
+        if (!Number.isNaN(expiry.getTime()) && expiry.getTime() < Date.now()) {
+          isValid = false
+        }
+      }
+      if (isValid) {
+        profileRow.establishment_id = activeId
+      }
+    }
+  }
+
+  return profileRow
 }
 
 export async function insertAuditLog(
