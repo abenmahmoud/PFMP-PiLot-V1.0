@@ -267,7 +267,7 @@ export const startSuperadminImpersonation = createServerFn({ method: 'POST' })
       const adminClient = createAdminClient()
       const caller = await assertSuperadmin(adminClient, data.accessToken)
       const establishment = await getEstablishment(adminClient, data.establishmentId)
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+      const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
       await insertAuditLog(adminClient, {
         establishmentId: establishment.id,
         userId: caller.id,
