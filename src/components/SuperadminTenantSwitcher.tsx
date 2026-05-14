@@ -29,8 +29,11 @@ export function SuperadminTenantSwitcher() {
     setLoading(true)
     setError(null)
     const sb = getSupabase()
+    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
     const { error } = await sb.auth.updateUser({
-      data: { active_establishment_id: id ?? '' },
+      data: id
+        ? { active_establishment_id: id, active_establishment_expires_at: expiresAt }
+        : { active_establishment_id: '', active_establishment_expires_at: '' },
     })
     if (error) {
       setLoading(false)

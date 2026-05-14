@@ -160,8 +160,20 @@ export async function getCurrentSession(): Promise<Session | null> {
 
 export function readActiveEstablishmentId(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== 'object') return null
-  const value = (metadata as Record<string, unknown>).active_establishment_id
-  return typeof value === 'string' && value.length > 0 ? value : null
+  const record = metadata as Record<string, unknown>
+  const value = record.active_establishment_id
+  if (
+    typeof value !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  ) {
+    return null
+  }
+  const expiresAt = record.active_establishment_expires_at
+  if (typeof expiresAt === 'string' && expiresAt.length > 0) {
+    const expiry = new Date(expiresAt)
+    if (!Number.isNaN(expiry.getTime()) && expiry.getTime() < Date.now()) return null
+  }
+  return value
 }
 
 export async function getActiveEstablishmentScope(): Promise<string | null> {

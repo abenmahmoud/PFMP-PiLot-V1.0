@@ -52,6 +52,29 @@ export function validateUuid(value: unknown, label: string): string {
   return uuid
 }
 
+function isUuid(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  )
+}
+
+function isActiveScopeValid(expiresAt: unknown): boolean {
+  if (typeof expiresAt !== 'string' || expiresAt.length === 0) return true
+  const expiry = new Date(expiresAt)
+  return Number.isNaN(expiry.getTime()) || expiry.getTime() >= Date.now()
+}
+
+async function activeEstablishmentExists(adminClient: AdminClient, establishmentId: string): Promise<boolean> {
+  const { data, error } = await adminClient
+    .from('establishments')
+    .select('id,active')
+    .eq('id', establishmentId)
+    .maybeSingle()
+  if (error) throw new Error(`Verification etablissement actif impossible: ${error.message}`)
+  return Boolean(data && (data as { active?: boolean }).active !== false)
+}
+
 export async function getCallerProfile(
   adminClient: AdminClient,
   accessToken: string,
@@ -79,18 +102,8 @@ export async function getCallerProfile(
     const metadata = caller.user_metadata as { active_establishment_id?: unknown; active_establishment_expires_at?: unknown } | null
     const activeId = metadata?.active_establishment_id
     const expiresAt = metadata?.active_establishment_expires_at
-    if (typeof activeId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(activeId)) {
-      // Si expires_at est present et expire, on ignore (la session devrait refresh)
-      let isValid = true
-      if (typeof expiresAt === 'string') {
-        const expiry = new Date(expiresAt)
-        if (!Number.isNaN(expiry.getTime()) && expiry.getTime() < Date.now()) {
-          isValid = false
-        }
-      }
-      if (isValid) {
-        profileRow.establishment_id = activeId
-      }
+    if (isUuid(activeId) && isActiveScopeValid(expiresAt) && (await activeEstablishmentExists(adminClient, activeId))) {
+      profileRow.establishment_id = activeId
     }
   }
 
