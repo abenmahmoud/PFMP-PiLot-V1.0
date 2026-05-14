@@ -7,6 +7,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeader } from '@tanstack/react-start/server'
 
 import '../styles.css'
+import { PwaRegistrar } from '@/components/PwaRegistrar'
 import { AuthProvider } from '@/lib/AuthProvider'
 import {
   resolveServerTenant,
@@ -36,6 +37,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { name: 'theme-color', content: '#1e3a8a' },
+      { name: 'apple-mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-title', content: 'PFMP Pilot' },
       {
         name: 'description',
         content:
@@ -43,6 +46,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       },
       { title: 'PFMP Pilot AI · Pilotage des stages en lycée professionnel' },
     ],
+    links: [{ rel: 'manifest', href: '/manifest.webmanifest' }],
   }),
   shellComponent: RootDocument,
 })
@@ -54,7 +58,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PwaRegistrar />
+          {children}
+        </AuthProvider>
         <Scripts />
       </body>
     </html>

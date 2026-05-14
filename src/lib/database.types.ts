@@ -46,7 +46,18 @@ export type PeriodStatus =
   | 'completed'
   | 'cancelled'
   | 'archived'
-export type VisitStatus = 'draft' | 'validated' | 'archived'
+export type VisitStatus =
+  | 'draft'
+  | 'validated'
+  | 'archived'
+  | 'planned'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show'
+export type VisitType = 'mi_parcours' | 'fin_stage' | 'urgence' | 'autre'
+export type VisitEvaluationLevel = 'non_evalue' | 'A' | 'B' | 'C' | 'NE'
+export type VisitEvaluationRole = 'referent' | 'tutor' | 'student'
 export type ContactType = 'visit' | 'call' | 'video' | 'email'
 export type AlertLevel = 'none' | 'vigilance' | 'problem' | 'urgent'
 export type DocumentStatusEnum = 'missing' | 'draft' | 'validated' | 'archived'
@@ -234,7 +245,23 @@ export interface VisitRow {
   student_id: string
   teacher_id: string | null
   period_id: string | null
+  placement_id: string | null
+  referent_id: string | null
+  type: VisitType
   date: string
+  scheduled_at: string | null
+  done_at: string | null
+  duration_minutes: number | null
+  location_lat: number | null
+  location_lng: number | null
+  summary: string | null
+  full_report: string | null
+  voice_transcript: string | null
+  student_satisfaction: number | null
+  tutor_satisfaction: number | null
+  flagged_for_review: boolean
+  flag_reason: string | null
+  photos: VisitPhoto[]
   contact_type: ContactType
   student_present: boolean | null
   tutor_met: boolean | null
@@ -250,8 +277,29 @@ export interface VisitRow {
   status: VisitStatus
   validated_by: string | null
   validated_at: string | null
+  archived_at: string | null
   created_at: string
   updated_at: string
+}
+
+export interface VisitPhoto {
+  url: string | null
+  offline_id?: string | null
+  lat: number | null
+  lng: number | null
+  taken_at: string
+  caption?: string | null
+}
+
+export interface VisitEvaluationRow {
+  id: string
+  visit_id: string
+  competence_code: string
+  competence_label: string
+  level: VisitEvaluationLevel
+  notes: string | null
+  evaluated_by_role: VisitEvaluationRole
+  created_at: string
 }
 
 export interface VisitReportRow {
