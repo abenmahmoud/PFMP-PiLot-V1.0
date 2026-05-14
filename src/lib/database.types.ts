@@ -63,6 +63,11 @@ export type AlertLevel = 'none' | 'vigilance' | 'problem' | 'urgent'
 export type DocumentStatusEnum = 'missing' | 'draft' | 'validated' | 'archived'
 export type EstablishmentStatus = 'active' | 'trial' | 'suspended' | 'archived'
 export type StudentAccessCodeStatus = 'active' | 'revoked' | 'expired'
+export type SignatureWorkflowStatus = 'not_required' | 'pending_signatures' | 'partial_signed' | 'fully_signed'
+export type SignatureStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'refused' | 'expired' | 'cancelled'
+export type SignerRole = 'student' | 'parent' | 'tutor' | 'employer' | 'school' | 'referent' | 'principal' | 'ddfpt' | 'admin'
+export type SignatureMethod = 'click_to_sign' | 'draw_signature' | 'sms_otp'
+export type TokenStatus = 'active' | 'used' | 'revoked' | 'expired'
 
 // ----------------------------------------------------------------------------
 // Row types — extraits dans des interfaces nommées pour éviter
@@ -326,6 +331,95 @@ export interface DocumentRow {
   archived_at: string | null
   created_at: string
   updated_at: string
+}
+
+export interface GeneratedDocumentRow {
+  id: string
+  establishment_id: string
+  document_id: string
+  template_id: string | null
+  version: number
+  storage_path: string
+  file_size_bytes: number | null
+  mime_type: string | null
+  sha256_hex: string | null
+  generated_by: string | null
+  generated_at: string
+  rendered_with: Json | null
+  signature_status: SignatureWorkflowStatus
+  required_signers: Json
+  final_signed_pdf_url: string | null
+  final_signed_sha256_hex: string | null
+  signature_proof: Json
+}
+
+export interface DocumentSignatureRow {
+  id: string
+  establishment_id: string
+  document_id: string
+  generated_document_id: string | null
+  signer_email: string
+  signer_name: string | null
+  signer_role: SignerRole
+  signer_user_id: string | null
+  signer_tutor_id: string | null
+  signer_student_id: string | null
+  signer_phone: string | null
+  status: SignatureStatus
+  sent_at: string | null
+  viewed_at: string | null
+  signed_at: string | null
+  refused_at: string | null
+  refusal_reason: string | null
+  signature_data: string | null
+  signature_method: SignatureMethod | null
+  signature_image_url: string | null
+  signed_document_sha256: string | null
+  document_hash: string | null
+  ip_address: string | null
+  user_agent: string | null
+  signed_from_ip: string | null
+  signed_from_user_agent: string | null
+  geolocation: Json | null
+  magic_link_token_hash: string | null
+  magic_link_expires_at: string | null
+  magic_link_used_at: string | null
+  otp_code_hash: string | null
+  otp_verified_at: string | null
+  signing_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TutorAccessTokenRow {
+  id: string
+  establishment_id: string
+  tutor_id: string
+  placement_id: string | null
+  document_signature_id: string | null
+  token_hash: string
+  scope: string
+  expires_at: string
+  used_at: string | null
+  used_count: number
+  max_uses: number
+  status: TokenStatus
+  created_at: string
+}
+
+export interface SignatureRequestEmailRow {
+  id: string
+  establishment_id: string
+  document_id: string
+  signature_id: string | null
+  signer_email: string
+  signer_role: string
+  token_hash: string
+  sent_at: string
+  delivered_at: string | null
+  opened_at: string | null
+  reminder_count: number
+  last_reminder_at: string | null
 }
 
 export interface AlertRow {
