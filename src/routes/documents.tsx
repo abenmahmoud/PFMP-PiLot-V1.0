@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Download, Eye, FileText, Upload } from 'lucide-react'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -216,9 +216,11 @@ function SupabaseDocumentList({ items }: { items: DocumentListItem[] }) {
             ) : (
               <Badge tone="neutral">Sans fichier</Badge>
             )}
-            <Button size="sm" variant="ghost" iconLeft={<Eye className="w-3.5 h-3.5" />} disabled>
-              <span className="hidden sm:inline">Voir</span>
-            </Button>
+            <Link to="/admin/documents/$id" params={{ id: item.document.id }}>
+              <Button size="sm" variant="ghost" iconLeft={<Eye className="w-3.5 h-3.5" />}>
+                <span className="hidden sm:inline">Voir</span>
+              </Button>
+            </Link>
             <Button size="sm" variant="ghost" iconLeft={<Download className="w-3.5 h-3.5" />} disabled>
               <span className="hidden sm:inline">PDF</span>
             </Button>
