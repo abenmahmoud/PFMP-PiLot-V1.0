@@ -13,13 +13,14 @@ import {
 } from '@/components/placements/PlacementFormModal'
 import { PlacementStatusBadge } from '@/components/placements/PlacementStatusBadge'
 import { useAuth } from '@/lib/AuthProvider'
-import { getSupabase, isDemoMode } from '@/lib/supabase'
+import { isDemoMode } from '@/lib/supabase'
 import type { ClassRow, StudentRow } from '@/lib/database.types'
 import { listCompaniesForEstablishment, type CompanyWithTutors } from '@/server/companies.functions'
 import { createPlacement, listPlacementsForPeriod, type PlacementWithRelations } from '@/server/placements.functions'
 import { listPfmpPeriodsForEstablishment, type PfmpPeriodWithStats } from '@/server/pfmpPeriods.functions'
 import { fetchTeachersWithStats } from '@/services/teachers'
 import type { TeacherWithStats } from '@/server/teachers.functions'
+import { listTenantStudentsAndClasses } from '@/server/tenantReference.functions'
 
 export const Route = createFileRoute('/admin/pfmp-periods/$id')({
   component: AdminPeriodDetailPage,
@@ -54,21 +55,17 @@ function AdminPeriodDetailSupabase() {
   async function reload() {
     const accessToken = auth.session?.access_token
     if (!accessToken) return
-    const sb = getSupabase()
-    const [periods, placementRows, studentsResult, classesResult, companyRows, teacherRows] = await Promise.all([
+    const [periods, placementRows, referenceRows, companyRows, teacherRows] = await Promise.all([
       listPfmpPeriodsForEstablishment({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
       listPlacementsForPeriod({ data: { accessToken, establishmentId: auth.activeEstablishmentId, periodId: id } }),
-      sb.from('students').select('*').is('archived_at', null).order('last_name'),
-      sb.from('classes').select('*').order('name'),
+      listTenantStudentsAndClasses({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
       listCompaniesForEstablishment({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
-      fetchTeachersWithStats(accessToken),
+      fetchTeachersWithStats(accessToken, auth.activeEstablishmentId),
     ])
-    if (studentsResult.error) throw new Error(`Lecture eleves impossible: ${studentsResult.error.message}`)
-    if (classesResult.error) throw new Error(`Lecture classes impossible: ${classesResult.error.message}`)
     setPeriod(periods.find((item) => item.period.id === id) ?? null)
     setPlacements(placementRows)
-    setStudents((studentsResult.data as StudentRow[]) ?? [])
-    setClasses((classesResult.data as ClassRow[]) ?? [])
+    setStudents(referenceRows.students)
+    setClasses(referenceRows.classes)
     setCompanies(companyRows)
     setTeachers(teacherRows)
   }

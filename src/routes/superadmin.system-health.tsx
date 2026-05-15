@@ -10,6 +10,7 @@ import { AppLayout } from '@/components/AppLayout'
 import { useAuth } from '@/lib/AuthProvider'
 import { isDemoMode } from '@/lib/supabase'
 import { getSystemHealth, type SystemHealth } from '@/server/superadminDashboard.functions'
+import { auditTenantLinkages, type TenantLinkageAuditResult } from '@/server/tenantReference.functions'
 
 export const Route = createFileRoute('/superadmin/system-health')({
   component: SuperadminSystemHealthPage,
@@ -29,6 +30,7 @@ function SuperadminSystemHealthPage() {
 function SystemHealthSupabase() {
   const auth = useAuth()
   const [health, setHealth] = useState<SystemHealth | null>(null)
+  const [linkageAudit, setLinkageAudit] = useState<TenantLinkageAuditResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,7 +43,14 @@ function SystemHealthSupabase() {
     setLoading(true)
     setError(null)
     try {
-      setHealth(await getSystemHealth({ data: { accessToken } }))
+      const [nextHealth, nextAudit] = await Promise.all([
+        getSystemHealth({ data: { accessToken } }),
+        auth.activeEstablishmentId
+          ? auditTenantLinkages({ data: { accessToken, establishmentId: auth.activeEstablishmentId } })
+          : Promise.resolve(null),
+      ])
+      setHealth(nextHealth)
+      setLinkageAudit(nextAudit)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -52,7 +61,7 @@ function SystemHealthSupabase() {
   useEffect(() => {
     if (auth.loading) return
     load()
-  }, [auth.loading, auth.session?.access_token])
+  }, [auth.loading, auth.session?.access_token, auth.activeEstablishmentId])
 
   if (auth.loading || loading) {
     return (
@@ -138,7 +147,73 @@ function SystemHealthSupabase() {
           </CardBody>
         </Card>
         <ComplianceChecks checks={health.checks} />
+        <LinkageAuditCard audit={linkageAudit} />
       </div>
     </AppLayout>
+  )
+}
+
+function LinkageAuditCard({ audit }: { audit: TenantLinkageAuditResult | null }) {
+  if (!audit) {
+    return (
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <CardTitle icon={<Database className="h-4 w-4" />}>Audit liaisons tenant</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Selectionnez un etablissement actif avec le switcher superadmin pour auditer ses liaisons PFMP.
+          </p>
+        </CardBody>
+      </Card>
+    )
+  }
+
+  const blockingIssues = audit.issues.filter((issue) => issue.severity === 'error')
+
+  return (
+    <Card className="xl:col-span-2">
+      <CardHeader>
+        <CardTitle icon={<Database className="h-4 w-4" />}>Audit liaisons tenant</CardTitle>
+        <Badge tone={audit.summary.errors === 0 ? 'success' : 'danger'}>
+          {audit.summary.errors === 0 ? 'OK' : `${audit.summary.errors} erreurs`}
+        </Badge>
+      </CardHeader>
+      <CardBody className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <AuditMetric label="Eleves" value={audit.summary.students} />
+          <AuditMetric label="Periodes" value={audit.summary.periods} />
+          <AuditMetric label="Placements" value={audit.summary.placements} />
+          <AuditMetric label="Warnings" value={audit.summary.warnings} />
+        </div>
+        {audit.issues.length === 0 ? (
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Toutes les liaisons principales sont coherentes : classes, eleves, periodes, placements, entreprises, tuteurs et referents.
+          </p>
+        ) : (
+          <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)]">
+            {(blockingIssues.length > 0 ? blockingIssues : audit.issues).slice(0, 8).map((issue, index) => (
+              <li key={`${issue.entity}-${issue.entityId}-${issue.relation}-${index}`} className="px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={issue.severity === 'error' ? 'danger' : 'warning'}>{issue.severity}</Badge>
+                  <span className="font-medium">{issue.relation}</span>
+                  <span className="text-xs text-[var(--color-text-muted)]">{issue.entityId ?? '-'}</span>
+                </div>
+                <p className="mt-1 text-[var(--color-text-muted)]">{issue.message}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardBody>
+    </Card>
+  )
+}
+
+function AuditMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-[var(--color-muted)]/60 px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-subtle)]">{label}</p>
+      <p className="text-lg font-semibold">{value}</p>
+    </div>
   )
 }

@@ -14,8 +14,11 @@ export type TeacherDetail = {
 
 export type TeacherListItem = TeacherWithStats
 
-export async function fetchTeachersWithStats(accessToken: string): Promise<TeacherWithStats[]> {
-  return listTeachersForEstablishment({ data: { accessToken } })
+export async function fetchTeachersWithStats(
+  accessToken: string,
+  establishmentId?: string | null,
+): Promise<TeacherWithStats[]> {
+  return listTeachersForEstablishment({ data: { accessToken, establishmentId } })
 }
 
 export async function fetchTeachers(accessToken?: string): Promise<TeacherWithStats[]> {

@@ -99,7 +99,9 @@ function StudentDetailSupabase({ id }: { id: string }) {
 
     Promise.all([
       fetchStudentById(id, auth.profile),
-      accessToken ? fetchTeachersWithStats(accessToken).catch(() => [] as TeacherWithStats[]) : Promise.resolve([]),
+      accessToken
+        ? fetchTeachersWithStats(accessToken, auth.activeEstablishmentId).catch(() => [] as TeacherWithStats[])
+        : Promise.resolve([]),
     ])
       .then(([nextDetail, nextTeachers]) => {
         if (mounted) {
@@ -117,7 +119,7 @@ function StudentDetailSupabase({ id }: { id: string }) {
     return () => {
       mounted = false
     }
-  }, [auth.loading, auth.profile, id])
+  }, [auth.loading, auth.profile, auth.activeEstablishmentId, id])
 
   async function handleGenerateCode() {
     if (!detail?.class?.id) return
