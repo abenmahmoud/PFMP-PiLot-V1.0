@@ -72,6 +72,7 @@ interface ImportTeachersInput {
 
 interface ListTeachersInput {
   accessToken: string
+  establishmentId?: string | null
 }
 
 const TEACHER_MANAGE_ROLES: UserRole[] = ['admin', 'ddfpt', 'superadmin']
@@ -270,7 +271,7 @@ export const listTeachersForEstablishment = createServerFn({ method: 'POST' })
       if (!TEACHER_READ_ROLES.includes(caller.role)) {
         throw new Error('Acces refuse: annuaire professeurs non autorise.')
       }
-      const establishmentId = resolveReadableEstablishment(caller)
+      const establishmentId = resolveReadableEstablishment(caller, data.establishmentId)
       return listTeachersWithStats(adminClient, establishmentId)
     })
   })
@@ -371,7 +372,10 @@ function validateImportTeachersInput(raw: unknown): ImportTeachersInput {
 
 function validateListTeachersInput(raw: unknown): ListTeachersInput {
   const data = raw as Partial<ListTeachersInput>
-  return { accessToken: readRequiredString(data.accessToken, 'Session') }
+  return {
+    accessToken: readRequiredString(data.accessToken, 'Session'),
+    establishmentId: data.establishmentId ? validateUuid(data.establishmentId, 'Etablissement') : null,
+  }
 }
 
 function validateTeacherCreate(raw: unknown): TeacherCreateInput {
@@ -437,9 +441,17 @@ function resolveWritableEstablishment(caller: ProfileRow): string {
   return caller.establishment_id
 }
 
-function resolveReadableEstablishment(caller: ProfileRow): string {
+function resolveReadableEstablishment(caller: ProfileRow, requested?: string | null): string {
+  if (caller.role === 'superadmin') {
+    const establishmentId = requested ?? caller.establishment_id
+    if (!establishmentId) throw new Error('Etablissement actif requis pour lire les professeurs.')
+    return establishmentId
+  }
   if (!caller.establishment_id) {
     throw new Error('Etablissement actif requis pour lire les professeurs.')
+  }
+  if (requested && requested !== caller.establishment_id) {
+    throw new Error('Acces refuse: etablissement hors perimetre.')
   }
   return caller.establishment_id
 }

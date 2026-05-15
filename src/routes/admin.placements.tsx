@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Network, Plus } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
@@ -13,7 +13,7 @@ import {
 } from '@/components/placements/PlacementFormModal'
 import { PlacementStatusBadge } from '@/components/placements/PlacementStatusBadge'
 import { useAuth } from '@/lib/AuthProvider'
-import { getSupabase, isDemoMode } from '@/lib/supabase'
+import { isDemoMode } from '@/lib/supabase'
 import type { ClassRow, StageStatus, StudentRow } from '@/lib/database.types'
 import { listCompaniesForEstablishment, type CompanyWithTutors } from '@/server/companies.functions'
 import {
@@ -25,10 +25,18 @@ import {
 import { listPfmpPeriodsForEstablishment, type PfmpPeriodWithStats } from '@/server/pfmpPeriods.functions'
 import { fetchTeachersWithStats } from '@/services/teachers'
 import type { TeacherWithStats } from '@/server/teachers.functions'
+import { listTenantStudentsAndClasses } from '@/server/tenantReference.functions'
 
 export const Route = createFileRoute('/admin/placements')({
-  component: AdminPlacementsPage,
+  component: AdminPlacementsRoutePage,
 })
+
+function AdminPlacementsRoutePage() {
+  const matchRoute = useMatchRoute()
+  const isOnChild = matchRoute({ to: '/admin/placements/$id', fuzzy: true })
+  if (isOnChild) return <Outlet />
+  return <AdminPlacementsPage />
+}
 
 const STATUS_OPTIONS: Array<{ value: 'all' | StageStatus; label: string }> = [
   { value: 'all', label: 'Tous statuts' },
@@ -70,21 +78,17 @@ function AdminPlacementsSupabase() {
   async function reload() {
     const accessToken = auth.session?.access_token
     if (!accessToken) return
-    const sb = getSupabase()
-    const [placementRows, periodRows, studentsResult, classesResult, companyRows, teacherRows] = await Promise.all([
+    const [placementRows, periodRows, referenceRows, companyRows, teacherRows] = await Promise.all([
       listPlacementsForEstablishment({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
       listPfmpPeriodsForEstablishment({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
-      sb.from('students').select('*').is('archived_at', null).order('last_name'),
-      sb.from('classes').select('*').order('name'),
+      listTenantStudentsAndClasses({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
       listCompaniesForEstablishment({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
-      fetchTeachersWithStats(accessToken),
+      fetchTeachersWithStats(accessToken, auth.activeEstablishmentId),
     ])
-    if (studentsResult.error) throw new Error(`Lecture eleves impossible: ${studentsResult.error.message}`)
-    if (classesResult.error) throw new Error(`Lecture classes impossible: ${classesResult.error.message}`)
     setPlacements(placementRows)
     setPeriods(periodRows)
-    setStudents((studentsResult.data as StudentRow[]) ?? [])
-    setClasses((classesResult.data as ClassRow[]) ?? [])
+    setStudents(referenceRows.students)
+    setClasses(referenceRows.classes)
     setCompanies(companyRows)
     setTeachers(teacherRows)
   }
