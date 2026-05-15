@@ -68,6 +68,8 @@ export type SignatureStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'refuse
 export type SignerRole = 'student' | 'parent' | 'tutor' | 'employer' | 'school' | 'referent' | 'principal' | 'ddfpt' | 'admin'
 export type SignatureMethod = 'click_to_sign' | 'draw_signature' | 'sms_otp'
 export type TokenStatus = 'active' | 'used' | 'revoked' | 'expired'
+export type SalesLeadStatus = 'new' | 'qualified' | 'demo_scheduled' | 'proposal_sent' | 'won' | 'lost' | 'archived'
+export type SalesLeadOrganizationType = 'lycee' | 'groupe_scolaire' | 'rectorat' | 'collectivite' | 'autre'
 
 // ----------------------------------------------------------------------------
 // Row types — extraits dans des interfaces nommées pour éviter
@@ -198,6 +200,25 @@ export interface TutorRow {
   responsiveness: string | null
   internal_notes: string | null
   archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SalesLeadRow {
+  id: string
+  contact_name: string
+  email: string
+  phone: string | null
+  organization_name: string
+  role_label: string | null
+  organization_type: SalesLeadOrganizationType
+  city: string | null
+  establishments_count: number | null
+  students_count: number | null
+  message: string | null
+  needs_demo: boolean
+  status: SalesLeadStatus
+  source: string
   created_at: string
   updated_at: string
 }
