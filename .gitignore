@@ -1,5 +1,6 @@
 node_modules/
 .output/
+.vercel/
 src/routeTree.gen.ts
 
 # Données nominatives Blaïse Cendrars — RGPD (jamais en repo public)

@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BookOpen, Brain, Download, Eye, FileText, RefreshCw, Save, UploadCloud } from 'lucide-react'
+import { AlertTriangle, BookOpen, Brain, Eye, FileText, RefreshCw, Save, UploadCloud } from 'lucide-react'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { AppLayout } from '@/components/AppLayout'
 import { DocumentList } from '@/components/DocumentList'
@@ -50,6 +50,7 @@ export function DocumentsPage() {
 function DocumentsSupabase() {
   const auth = useAuth()
   const [type, setType] = useState<DocumentType | 'all'>('all')
+  const [validationOnly, setValidationOnly] = useState(false)
   const [items, setItems] = useState<DocumentListItem[]>([])
   const [periods, setPeriods] = useState<PfmpPeriodRow[]>([])
   const [templates, setTemplates] = useState<DocumentTemplateRow[]>([])
@@ -84,7 +85,7 @@ function DocumentsSupabase() {
 
     withTimeout(
       Promise.all([
-        fetchDocuments({ type: type === 'all' ? undefined : type }),
+        fetchDocuments({ type: validationOnly ? 'convention' : type === 'all' ? undefined : type }),
         fetchDocumentPeriods(),
         accessToken ? fetchConventionStudio(accessToken, auth.activeEstablishmentId) : Promise.resolve({ templates: [], assignments: [] }),
       ]),
@@ -109,14 +110,18 @@ function DocumentsSupabase() {
     return () => {
       mounted = false
     }
-  }, [auth.loading, auth.profile, auth.session, auth.activeEstablishmentId, type])
+  }, [auth.loading, auth.profile, auth.session, auth.activeEstablishmentId, type, validationOnly])
 
-  const summary = useMemo(() => buildDocumentSummary(items), [items])
+  const visibleItems = useMemo(
+    () => validationOnly ? items.filter((item) => item.document.type === 'convention' && ['draft', 'generated'].includes(item.document.status)) : items,
+    [items, validationOnly],
+  )
+  const summary = useMemo(() => buildDocumentSummary(visibleItems), [visibleItems])
 
   async function reloadDocuments() {
     const accessToken = auth.session?.access_token
     const [nextItems, nextPeriods] = await Promise.all([
-      fetchDocuments({ type: type === 'all' ? undefined : type }),
+      fetchDocuments({ type: validationOnly ? 'convention' : type === 'all' ? undefined : type }),
       fetchDocumentPeriods(),
     ])
     setItems(nextItems)
@@ -319,22 +324,30 @@ function DocumentsSupabase() {
         onSourceTextChange={setSourceText}
         onAnalyzeSource={analyzeSourceTemplate}
       />
-      <DocumentTabs type={type} setType={setType} />
+      <DocumentTabs
+        type={type}
+        setType={(nextType) => {
+          setType(nextType)
+          setValidationOnly(false)
+        }}
+        validationOnly={validationOnly}
+        setValidationOnly={setValidationOnly}
+      />
       <Card>
         <CardHeader>
           <CardTitle icon={<FileText className="w-4 h-4" />}>
-            {type === 'all' ? 'Tous les documents' : DOCUMENT_TYPE_LABELS[type]}
+            {validationOnly ? 'Conventions a valider' : type === 'all' ? 'Tous les documents' : DOCUMENT_TYPE_LABELS[type]}
           </CardTitle>
         </CardHeader>
         <CardBody>
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <EmptyState
               icon={<FileText className="w-5 h-5" />}
               title="Aucun document"
               description="Aucun document ne correspond aux filtres actuels dans ce tenant."
             />
           ) : (
-            <SupabaseDocumentList items={items} />
+            <SupabaseDocumentList items={visibleItems} />
           )}
         </CardBody>
       </Card>
@@ -674,15 +687,24 @@ function FieldReviewLine({ field }: { field: DocumentTemplateFieldRow }) {
 function DocumentTabs({
   type,
   setType,
+  validationOnly = false,
+  setValidationOnly,
 }: {
   type: DocumentType | 'all'
   setType: (type: DocumentType | 'all') => void
+  validationOnly?: boolean
+  setValidationOnly?: (value: boolean) => void
 }) {
   return (
     <div className="flex flex-wrap gap-2 mb-4">
-      <FilterPill active={type === 'all'} onClick={() => setType('all')}>Tous</FilterPill>
+      <FilterPill active={!validationOnly && type === 'all'} onClick={() => setType('all')}>Tous</FilterPill>
+      {setValidationOnly && (
+        <FilterPill active={validationOnly} onClick={() => setValidationOnly(true)}>
+          A valider
+        </FilterPill>
+      )}
       {TABS.map((tab) => (
-        <FilterPill key={tab} active={type === tab} onClick={() => setType(tab)}>
+        <FilterPill key={tab} active={!validationOnly && type === tab} onClick={() => setType(tab)}>
           {DOCUMENT_TYPE_LABELS[tab]}
         </FilterPill>
       ))}
@@ -722,9 +744,6 @@ function SupabaseDocumentList({ items }: { items: DocumentListItem[] }) {
                 <span className="hidden sm:inline">Voir</span>
               </Button>
             </Link>
-            <Button size="sm" variant="ghost" iconLeft={<Download className="w-3.5 h-3.5" />} disabled>
-              <span className="hidden sm:inline">PDF</span>
-            </Button>
           </li>
         )
       })}

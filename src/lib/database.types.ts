@@ -60,7 +60,7 @@ export type VisitEvaluationLevel = 'non_evalue' | 'A' | 'B' | 'C' | 'NE'
 export type VisitEvaluationRole = 'referent' | 'tutor' | 'student'
 export type ContactType = 'visit' | 'call' | 'video' | 'email'
 export type AlertLevel = 'none' | 'vigilance' | 'problem' | 'urgent'
-export type DocumentStatusEnum = 'missing' | 'draft' | 'validated' | 'archived'
+export type DocumentStatusEnum = 'missing' | 'draft' | 'validated' | 'generated' | 'pending_signatures' | 'signed' | 'archived'
 export type DocumentTemplateSourceKind =
   | 'manual'
   | 'docx_import'
@@ -144,8 +144,13 @@ export interface StudentRow {
   class_id: string | null
   first_name: string
   last_name: string
+  birth_date?: string | null
   email: string | null
   phone: string | null
+  parent_first_name?: string | null
+  parent_last_name?: string | null
+  parent_email?: string | null
+  parent_phone?: string | null
   formation: string | null
   notes: string | null
   referent_id: string | null
@@ -368,6 +373,7 @@ export interface DocumentRow {
   template_id: string | null
   name: string
   storage_path: string | null
+  generated_document_id: string | null
   status: DocumentStatusEnum
   author_id: string | null
   archived_at: string | null

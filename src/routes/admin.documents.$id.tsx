@@ -18,6 +18,7 @@ import {
   type DocumentSignatureWorkspace,
   type SignatureStatusResult,
 } from '@/server/signatures.functions'
+import { generateConventionPdf, sendConventionForSignatures } from '@/server/conventions.functions'
 
 export const Route = createFileRoute('/admin/documents/$id')({
   component: AdminDocumentDetailPage,
@@ -36,6 +37,7 @@ function AdminDocumentDetailSupabase() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
 
   async function reload() {
     const accessToken = auth.session?.access_token
@@ -86,6 +88,44 @@ function AdminDocumentDetailSupabase() {
           signatureData: null,
         },
       })
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function generateConvention() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken) return
+    setSaving(true)
+    setError(null)
+    setActionMessage(null)
+    try {
+      const result = await generateConventionPdf({
+        data: { accessToken, establishmentId: auth.activeEstablishmentId, documentId: id },
+      })
+      setActionMessage(`PDF convention genere (version ${result.version}).`)
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function sendConventionSignatures() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken) return
+    setSaving(true)
+    setError(null)
+    setActionMessage(null)
+    try {
+      const result = await sendConventionForSignatures({
+        data: { accessToken, establishmentId: auth.activeEstablishmentId, documentId: id },
+      })
+      setActionMessage(`${result.signaturesSent} demande(s) de signature envoyee(s).`)
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -147,6 +187,7 @@ function AdminDocumentDetailSupabase() {
     >
       <div className="space-y-5">
         {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {actionMessage && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{actionMessage}</div>}
 
         <Card>
           <CardHeader>
@@ -160,11 +201,26 @@ function AdminDocumentDetailSupabase() {
           </CardBody>
         </Card>
 
+        {workspace.logicalDocument.type === 'convention' && (
+          <ConventionWorkflowCard
+            status={workspace.logicalDocument.status}
+            hasGeneratedDocument={workspace.generatedDocuments.length > 0}
+            latestGeneratedDocument={workspace.generatedDocuments[0]?.document ?? null}
+            saving={saving}
+            onGenerate={generateConvention}
+            onSend={sendConventionSignatures}
+          />
+        )}
+
         {workspace.generatedDocuments.length === 0 ? (
           <EmptyState
             icon={<FileText className="w-5 h-5" />}
-            title="Aucune generation PDF"
-            description="Generez d'abord une attestation depuis le module documents avant de demander les signatures."
+            title={workspace.logicalDocument.type === 'convention' ? 'PDF convention non genere' : 'Aucune generation PDF'}
+            description={
+              workspace.logicalDocument.type === 'convention'
+                ? 'Utilisez le workflow convention ci-dessus des que le dossier PFMP contient entreprise, tuteur et dates.'
+                : 'Generez d abord une attestation depuis le module documents avant de demander les signatures.'
+            }
           />
         ) : (
           workspace.generatedDocuments.map(({ document, signatures }) => (
@@ -173,6 +229,7 @@ function AdminDocumentDetailSupabase() {
               document={document}
               signatures={signatures}
               saving={saving}
+              showManualSignatureRequest={workspace.logicalDocument.type !== 'convention'}
               onRequest={() => setModalDocumentId(document.id)}
               onSignMe={() => signAsMe(document.id)}
               onRemind={(email) => remind(document.id, email)}
@@ -217,10 +274,80 @@ function AdminDocumentDetailDemo() {
   )
 }
 
+function ConventionWorkflowCard({
+  status,
+  hasGeneratedDocument,
+  latestGeneratedDocument,
+  saving,
+  onGenerate,
+  onSend,
+}: {
+  status: string
+  hasGeneratedDocument: boolean
+  latestGeneratedDocument: GeneratedDocumentRow | null
+  saving: boolean
+  onGenerate: () => void
+  onSend: () => void
+}) {
+  const canGenerate = status === 'draft' || status === 'generated'
+  const canSend = status === 'generated' && hasGeneratedDocument && latestGeneratedDocument?.signature_status === 'not_required'
+  const isPending = status === 'pending_signatures'
+  const isSigned = status === 'signed'
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle icon={<FileText className="w-4 h-4" />}>Workflow convention PFMP</CardTitle>
+        <Badge tone={isSigned ? 'success' : isPending ? 'warning' : canGenerate ? 'info' : 'neutral'}>
+          {conventionWorkflowLabel(status)}
+        </Badge>
+      </CardHeader>
+      <CardBody className="space-y-4">
+        {status === 'missing' && (
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Affectez d'abord une entreprise, un tuteur et les dates dans le dossier PFMP. La convention passera alors en brouillon.
+          </p>
+        )}
+        {canGenerate && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" iconLeft={<FileText className="w-4 h-4" />} onClick={onGenerate} disabled={saving}>
+              {hasGeneratedDocument ? 'Regenerer le PDF' : 'Generer le PDF'}
+            </Button>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Le PDF est genere depuis le modele affecte a la classe de l'eleve.
+            </p>
+          </div>
+        )}
+        {canSend && (
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-3">
+            <p className="text-sm font-medium text-[var(--color-text)]">Pret pour signature numerique</p>
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+              Le tuteur entreprise, le responsable legal si l'eleve est mineur, puis le DDFPT recevront un lien de signature.
+            </p>
+            <Button type="button" size="sm" className="mt-3" iconLeft={<Send className="w-4 h-4" />} onClick={onSend} disabled={saving}>
+              Envoyer pour signatures
+            </Button>
+          </div>
+        )}
+        {isPending && (
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Les signatures sont en cours. Les relances sont disponibles dans la carte de version PDF ci-dessous.
+          </p>
+        )}
+        {isSigned && (
+          <p className="text-sm text-green-700">
+            Convention completement signee. Le PDF final avec page de preuve est disponible dans la version ci-dessous.
+          </p>
+        )}
+      </CardBody>
+    </Card>
+  )
+}
+
 function GeneratedDocumentCard({
   document,
   signatures,
   saving,
+  showManualSignatureRequest,
   onRequest,
   onSignMe,
   onRemind,
@@ -228,6 +355,7 @@ function GeneratedDocumentCard({
   document: GeneratedDocumentRow
   signatures: DocumentSignatureRow[]
   saving: boolean
+  showManualSignatureRequest: boolean
   onRequest: () => void
   onSignMe: () => void
   onRemind: (email: string) => void
@@ -249,9 +377,11 @@ function GeneratedDocumentCard({
         </div>
         <SignatureStatusTimeline signatures={signatures} />
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" iconLeft={<Send className="w-4 h-4" />} onClick={onRequest} disabled={saving || document.signature_status === 'fully_signed'}>
-            Demander signatures
-          </Button>
+          {showManualSignatureRequest && (
+            <Button type="button" size="sm" iconLeft={<Send className="w-4 h-4" />} onClick={onRequest} disabled={saving || document.signature_status === 'fully_signed'}>
+              Demander signatures
+            </Button>
+          )}
           <Button type="button" size="sm" variant="secondary" iconLeft={<CheckCircle2 className="w-4 h-4" />} onClick={onSignMe} disabled={saving || document.signature_status === 'fully_signed'}>
             Signer avec mon compte
           </Button>
@@ -286,6 +416,19 @@ function workflowLabel(status: GeneratedDocumentRow['signature_status']): string
     fully_signed: 'Signe complet',
   }
   return labels[status]
+}
+
+function conventionWorkflowLabel(status: string): string {
+  const labels: Record<string, string> = {
+    missing: 'A completer',
+    draft: 'Brouillon pret',
+    generated: 'PDF genere',
+    pending_signatures: 'Signatures en cours',
+    signed: 'Signe',
+    validated: 'Valide',
+    archived: 'Archive',
+  }
+  return labels[status] ?? status
 }
 
 function formatDateTime(value: string): string {
