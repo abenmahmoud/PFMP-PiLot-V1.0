@@ -1,12 +1,13 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Download, Eye, FileText, RefreshCw, Upload } from 'lucide-react'
+import { AlertTriangle, BookOpen, Download, Eye, FileText, RefreshCw, Save } from 'lucide-react'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { AppLayout } from '@/components/AppLayout'
 import { DocumentList } from '@/components/DocumentList'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { Label, Select, Textarea, Input } from '@/components/ui/Field'
 import { DocumentStatusBadge } from '@/components/StatusBadge'
 import { useAuth } from '@/lib/AuthProvider'
 import { isDemoMode } from '@/lib/supabase'
@@ -16,8 +17,16 @@ import {
   fetchDocuments,
   type DocumentListItem,
 } from '@/services/documents'
-import { ensureConventionDocumentsForPeriod } from '@/server/documents.functions'
-import type { PfmpPeriodRow } from '@/lib/database.types'
+import {
+  assignConventionTemplateToClass,
+  clearConventionTemplateForClass,
+  ensureConventionDocumentsForPeriod,
+  listClassConventionTemplateAssignments,
+  listDocumentTemplatesForEstablishment,
+  saveConventionTemplate,
+  type ClassConventionTemplateAssignment,
+} from '@/server/documents.functions'
+import type { DocumentTemplateRow, PfmpPeriodRow } from '@/lib/database.types'
 import { documents } from '@/data/demo'
 import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/types'
 
@@ -41,11 +50,16 @@ function DocumentsSupabase() {
   const [type, setType] = useState<DocumentType | 'all'>('all')
   const [items, setItems] = useState<DocumentListItem[]>([])
   const [periods, setPeriods] = useState<PfmpPeriodRow[]>([])
+  const [templates, setTemplates] = useState<DocumentTemplateRow[]>([])
+  const [assignments, setAssignments] = useState<ClassConventionTemplateAssignment[]>([])
   const [selectedPeriodId, setSelectedPeriodId] = useState('')
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [syncingConventions, setSyncingConventions] = useState(false)
+  const [studioSaving, setStudioSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [templateName, setTemplateName] = useState('')
+  const [templateBody, setTemplateBody] = useState(DEFAULT_TEMPLATE_DRAFT)
 
   useEffect(() => {
     if (auth.loading) return
@@ -58,18 +72,23 @@ function DocumentsSupabase() {
     setLoading(true)
     setError(null)
 
+    const accessToken = auth.session?.access_token
+
     withTimeout(
       Promise.all([
         fetchDocuments({ type: type === 'all' ? undefined : type }),
         fetchDocumentPeriods(),
+        accessToken ? fetchConventionStudio(accessToken, auth.activeEstablishmentId) : Promise.resolve({ templates: [], assignments: [] }),
       ]),
       LOAD_TIMEOUT_MS,
       'Lecture Supabase trop longue',
     )
-      .then(([nextItems, nextPeriods]) => {
+      .then(([nextItems, nextPeriods, studio]) => {
         if (!mounted) return
         setItems(nextItems)
         setPeriods(nextPeriods)
+        setTemplates(studio.templates)
+        setAssignments(studio.assignments)
         setSelectedPeriodId((current) => current || nextPeriods[0]?.id || '')
       })
       .catch((e) => {
@@ -82,11 +101,12 @@ function DocumentsSupabase() {
     return () => {
       mounted = false
     }
-  }, [auth.loading, auth.profile, type])
+  }, [auth.loading, auth.profile, auth.session, auth.activeEstablishmentId, type])
 
   const summary = useMemo(() => buildDocumentSummary(items), [items])
 
   async function reloadDocuments() {
+    const accessToken = auth.session?.access_token
     const [nextItems, nextPeriods] = await Promise.all([
       fetchDocuments({ type: type === 'all' ? undefined : type }),
       fetchDocumentPeriods(),
@@ -94,6 +114,11 @@ function DocumentsSupabase() {
     setItems(nextItems)
     setPeriods(nextPeriods)
     setSelectedPeriodId((current) => current || nextPeriods[0]?.id || '')
+    if (accessToken) {
+      const studio = await fetchConventionStudio(accessToken, auth.activeEstablishmentId)
+      setTemplates(studio.templates)
+      setAssignments(studio.assignments)
+    }
   }
 
   async function prepareConventions() {
@@ -118,6 +143,68 @@ function DocumentsSupabase() {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSyncingConventions(false)
+    }
+  }
+
+  async function createTemplate() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken) return
+    setStudioSaving(true)
+    setError(null)
+    setActionMessage(null)
+    try {
+      const template = await saveConventionTemplate({
+        data: {
+          accessToken,
+          establishmentId: auth.activeEstablishmentId,
+          template: {
+            name: templateName || 'Convention PFMP etablissement',
+            bodyMarkdown: templateBody,
+          },
+        },
+      })
+      setTemplateName('')
+      setTemplateBody(DEFAULT_TEMPLATE_DRAFT)
+      setActionMessage(`Modele "${template.name}" enregistre. Vous pouvez maintenant l'affecter a une classe.`)
+      await reloadDocuments()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStudioSaving(false)
+    }
+  }
+
+  async function assignTemplate(classId: string, templateId: string) {
+    const accessToken = auth.session?.access_token
+    if (!accessToken || !classId || !templateId) return
+    setStudioSaving(true)
+    setError(null)
+    try {
+      await assignConventionTemplateToClass({
+        data: { accessToken, establishmentId: auth.activeEstablishmentId, classId, templateId },
+      })
+      await reloadDocuments()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStudioSaving(false)
+    }
+  }
+
+  async function clearTemplate(classId: string) {
+    const accessToken = auth.session?.access_token
+    if (!accessToken || !classId) return
+    setStudioSaving(true)
+    setError(null)
+    try {
+      await clearConventionTemplateForClass({
+        data: { accessToken, establishmentId: auth.activeEstablishmentId, classId },
+      })
+      await reloadDocuments()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStudioSaving(false)
     }
   }
 
@@ -163,6 +250,18 @@ function DocumentsSupabase() {
           {actionMessage}
         </div>
       )}
+      <ConventionStudioPanel
+        templates={templates}
+        assignments={assignments}
+        templateName={templateName}
+        templateBody={templateBody}
+        saving={studioSaving}
+        onTemplateNameChange={setTemplateName}
+        onTemplateBodyChange={setTemplateBody}
+        onCreateTemplate={createTemplate}
+        onAssignTemplate={assignTemplate}
+        onClearTemplate={clearTemplate}
+      />
       <DocumentTabs type={type} setType={setType} />
       <Card>
         <CardHeader>
@@ -264,12 +363,120 @@ function DocumentActions({
           </Button>
         </>
       )}
-      <Button size="sm" variant="secondary" iconLeft={<Upload className="w-4 h-4" />} disabled>
-        Televerser papier
-      </Button>
-      <Button size="sm" iconLeft={<Download className="w-4 h-4" />} disabled>
-        Export ZIP
-      </Button>
+    </div>
+  )
+}
+
+function ConventionStudioPanel({
+  templates,
+  assignments,
+  templateName,
+  templateBody,
+  saving,
+  onTemplateNameChange,
+  onTemplateBodyChange,
+  onCreateTemplate,
+  onAssignTemplate,
+  onClearTemplate,
+}: {
+  templates: DocumentTemplateRow[]
+  assignments: ClassConventionTemplateAssignment[]
+  templateName: string
+  templateBody: string
+  saving: boolean
+  onTemplateNameChange: (value: string) => void
+  onTemplateBodyChange: (value: string) => void
+  onCreateTemplate: () => void
+  onAssignTemplate: (classId: string, templateId: string) => void
+  onClearTemplate: (classId: string) => void
+}) {
+  const conventionTemplates = templates.filter((template) => template.type === 'convention' && template.active)
+  return (
+    <div className="mb-5 grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <CardTitle icon={<BookOpen className="w-4 h-4" />}>Studio conventions par classe</CardTitle>
+          <Badge tone="brand">{assignments.filter((item) => item.template).length}/{assignments.length} classes configurees</Badge>
+        </CardHeader>
+        <CardBody className="space-y-3">
+          {assignments.length === 0 ? (
+            <EmptyState
+              icon={<BookOpen className="w-5 h-5" />}
+              title="Aucune classe a configurer"
+              description="Creez ou importez les classes avant d'affecter les conventions numeriques."
+            />
+          ) : (
+            assignments.map((item) => (
+              <div key={item.class.id} className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-white p-3 md:grid-cols-[1fr_2fr_auto] md:items-center">
+                <div>
+                  <p className="text-sm font-semibold">{item.class.name}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">{[item.class.level, item.class.formation].filter(Boolean).join(' - ') || 'Formation non renseignee'}</p>
+                </div>
+                <Select
+                  value={item.template?.id ?? ''}
+                  onChange={(event) => {
+                    if (event.target.value) void onAssignTemplate(item.class.id, event.target.value)
+                    else void onClearTemplate(item.class.id)
+                  }}
+                  disabled={saving || conventionTemplates.length === 0}
+                >
+                  <option value="">Aucun modele affecte</option>
+                  {conventionTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </Select>
+                {item.template ? (
+                  <Badge tone="success">Affecte</Badge>
+                ) : (
+                  <Badge tone="warning">A configurer</Badge>
+                )}
+              </div>
+            ))
+          )}
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Quand une periode PFMP est synchronisee, chaque convention eleve utilise le modele affecte a sa classe.
+          </p>
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle icon={<FileText className="w-4 h-4" />}>Nouveau modele</CardTitle>
+        </CardHeader>
+        <CardBody className="space-y-3">
+          <div>
+            <Label>Nom du modele</Label>
+            <Input
+              value={templateName}
+              onChange={(event) => onTemplateNameChange(event.target.value)}
+              placeholder="Convention MELEC 2025"
+              disabled={saving}
+            />
+          </div>
+          <div>
+            <Label>Contenu avec champs variables</Label>
+            <Textarea
+              className="min-h-44 font-mono text-xs"
+              value={templateBody}
+              onChange={(event) => onTemplateBodyChange(event.target.value)}
+              disabled={saving}
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            iconLeft={<Save className="w-4 h-4" />}
+            onClick={onCreateTemplate}
+            disabled={saving || templateBody.trim().length < 80}
+          >
+            Enregistrer modele
+          </Button>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Les fichiers DOCX officiels seront importes dans cette couche : l'IA proposera ensuite le mapping des champs, puis vous validerez.
+          </p>
+        </CardBody>
+      </Card>
     </div>
   )
 }
@@ -401,3 +608,39 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
     if (timeoutId) clearTimeout(timeoutId)
   }
 }
+
+async function fetchConventionStudio(
+  accessToken: string,
+  establishmentId: string | null,
+): Promise<{ templates: DocumentTemplateRow[]; assignments: ClassConventionTemplateAssignment[] }> {
+  const [templates, assignments] = await Promise.all([
+    listDocumentTemplatesForEstablishment({ data: { accessToken, establishmentId } }),
+    listClassConventionTemplateAssignments({ data: { accessToken, establishmentId } }),
+  ])
+  return { templates, assignments }
+}
+
+const DEFAULT_TEMPLATE_DRAFT = `# Convention PFMP
+
+Eleve : {{student.first_name}} {{student.last_name}}
+
+Classe : {{class.name}}
+
+Periode : {{period.name}} du {{period.start_date}} au {{period.end_date}}
+
+Entreprise : {{company.name}}
+
+Adresse entreprise : {{company.address}} {{company.zip_code}} {{company.city}}
+
+SIRET : {{company.siret}}
+
+Tuteur entreprise : {{tutor.first_name}} {{tutor.last_name}}
+
+Contact tuteur : {{tutor.email}} {{tutor.phone}}
+
+Signature parent si eleve mineur : {{parent.signature}}
+
+Signature tuteur entreprise : {{tutor.signature}}
+
+Signature etablissement : {{school.signature}}
+`

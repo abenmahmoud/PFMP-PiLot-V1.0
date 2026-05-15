@@ -1,5 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import type {
+  ClassDocumentTemplateAssignmentRow,
+  ClassRow,
   CompanyRow,
   DocumentRow,
   DocumentTemplateRow,
@@ -34,6 +36,13 @@ export interface ConventionDocumentSyncResult {
 export interface ConventionTemplateInput {
   name: string
   bodyMarkdown: string
+  sourceFilename?: string | null
+}
+
+export interface ClassConventionTemplateAssignment {
+  class: ClassRow
+  assignment: ClassDocumentTemplateAssignmentRow | null
+  template: DocumentTemplateRow | null
 }
 
 export const listDocumentTemplatesForEstablishment = createServerFn({ method: 'POST' })
@@ -77,6 +86,10 @@ export const saveConventionTemplate = createServerFn({ method: 'POST' })
           variables: DEFAULT_CONVENTION_VARIABLES,
           active: true,
           version: 1,
+          source_filename: data.template.sourceFilename ?? null,
+          source_kind: data.template.sourceFilename ? 'docx_import' : 'manual',
+          ai_mapping: buildAiMappingDraft(data.template.bodyMarkdown),
+          is_default: false,
           created_at: now,
           updated_at: now,
         })
@@ -91,6 +104,116 @@ export const saveConventionTemplate = createServerFn({ method: 'POST' })
         metadata: { type: 'convention', source: 'server.documents' },
       })
       return sanitizeTemplate(row as unknown as DocumentTemplateRow)
+    })
+  })
+
+export const listClassConventionTemplateAssignments = createServerFn({ method: 'POST' })
+  .inputValidator(validateListTemplatesInput)
+  .handler(async ({ data }): Promise<ClassConventionTemplateAssignment[]> => {
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      const establishmentId = resolveRequestedEstablishment(caller, data.establishmentId)
+      const [classes, assignments, templates] = await Promise.all([
+        listClasses(adminClient, establishmentId),
+        listActiveClassTemplateAssignments(adminClient, establishmentId),
+        listConventionTemplates(adminClient, establishmentId),
+      ])
+      const assignmentByClass = new Map(assignments.map((assignment) => [assignment.class_id, assignment]))
+      const templateById = indexById(templates)
+      return classes.map((klass) => {
+        const assignment = assignmentByClass.get(klass.id) ?? null
+        return {
+          class: klass,
+          assignment,
+          template: assignment ? templateById.get(assignment.template_id) ?? null : null,
+        }
+      })
+    })
+  })
+
+export const assignConventionTemplateToClass = createServerFn({ method: 'POST' })
+  .inputValidator(validateAssignTemplateInput)
+  .handler(async ({ data }): Promise<ClassConventionTemplateAssignment> => {
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      assertCanManageDocuments(caller)
+      const establishmentId = resolveRequestedEstablishment(caller, data.establishmentId)
+      const klass = await getClass(adminClient, data.classId)
+      if (klass.establishment_id !== establishmentId) throw new Error('Classe hors etablissement actif.')
+      const template = await getTemplate(adminClient, data.templateId)
+      if (template.type !== 'convention' || !template.active) throw new Error('Modele de convention invalide.')
+      if (template.establishment_id && template.establishment_id !== establishmentId) {
+        throw new Error('Modele hors etablissement actif.')
+      }
+
+      const now = new Date().toISOString()
+      const { error: deactivateError } = await adminClient
+        .from('class_document_template_assignments')
+        .update({ active: false, updated_at: now })
+        .eq('class_id', klass.id)
+        .eq('type', 'convention')
+        .eq('active', true)
+      if (deactivateError) throw new Error(`Desactivation ancienne affectation impossible: ${deactivateError.message}`)
+
+      const { data: assignmentRow, error } = await adminClient
+        .from('class_document_template_assignments')
+        .insert({
+          establishment_id: establishmentId,
+          class_id: klass.id,
+          template_id: template.id,
+          type: 'convention',
+          active: true,
+          assigned_by: caller.id,
+          created_at: now,
+          updated_at: now,
+        })
+        .select('*')
+        .single()
+      if (error) throw new Error(`Affectation modele classe impossible: ${error.message}`)
+
+      await insertAuditLog(adminClient, {
+        establishmentId,
+        userId: caller.id,
+        action: 'document_template.assigned_to_class',
+        description: `Modele convention affecte a la classe ${klass.name}`,
+        metadata: { class_id: klass.id, template_id: template.id, source: 'server.documents' },
+      })
+
+      return {
+        class: klass,
+        assignment: assignmentRow as unknown as ClassDocumentTemplateAssignmentRow,
+        template: sanitizeTemplate(template),
+      }
+    })
+  })
+
+export const clearConventionTemplateForClass = createServerFn({ method: 'POST' })
+  .inputValidator(validateClearTemplateAssignmentInput)
+  .handler(async ({ data }): Promise<{ ok: true; classId: string }> => {
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      assertCanManageDocuments(caller)
+      const establishmentId = resolveRequestedEstablishment(caller, data.establishmentId)
+      const klass = await getClass(adminClient, data.classId)
+      if (klass.establishment_id !== establishmentId) throw new Error('Classe hors etablissement actif.')
+      const { error } = await adminClient
+        .from('class_document_template_assignments')
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq('class_id', klass.id)
+        .eq('type', 'convention')
+        .eq('active', true)
+      if (error) throw new Error(`Retrait affectation modele impossible: ${error.message}`)
+      await insertAuditLog(adminClient, {
+        establishmentId,
+        userId: caller.id,
+        action: 'document_template.unassigned_from_class',
+        description: `Modele convention retire de la classe ${klass.name}`,
+        metadata: { class_id: klass.id, source: 'server.documents' },
+      })
+      return { ok: true, classId: klass.id }
     })
   })
 
@@ -126,7 +249,7 @@ export async function ensureConventionDocumentsForPeriodInternal(
   assertCanManageDocuments(caller)
   const period = await getPeriod(adminClient, periodId)
   assertSameTenant(caller, period.establishment_id, requestedEstablishmentId)
-  const template = await ensureConventionTemplate(adminClient, period.establishment_id)
+  const template = await resolveConventionTemplateForPeriod(adminClient, period)
   const placements = await listPeriodPlacements(adminClient, period)
   if (placements.length === 0) {
     return { ok: true, periodId: period.id, placements: 0, created: 0, updated: 0, templateId: template.id }
@@ -254,6 +377,10 @@ async function ensureConventionTemplate(adminClient: AdminClient, establishmentI
       variables: DEFAULT_CONVENTION_VARIABLES,
       active: true,
       version: 1,
+      source_filename: null,
+      source_kind: 'system',
+      ai_mapping: buildAiMappingDraft(DEFAULT_CONVENTION_TEMPLATE),
+      is_default: true,
       created_at: now,
       updated_at: now,
     })
@@ -261,6 +388,76 @@ async function ensureConventionTemplate(adminClient: AdminClient, establishmentI
     .single()
   if (insertError) throw new Error(`Creation modele convention impossible: ${insertError.message}`)
   return sanitizeTemplate(created as unknown as DocumentTemplateRow)
+}
+
+async function resolveConventionTemplateForPeriod(adminClient: AdminClient, period: PfmpPeriodRow): Promise<DocumentTemplateRow> {
+  if (period.class_id) {
+    const { data, error } = await adminClient
+      .from('class_document_template_assignments')
+      .select('*')
+      .eq('class_id', period.class_id)
+      .eq('type', 'convention')
+      .eq('active', true)
+      .maybeSingle()
+    if (error) throw new Error(`Lecture modele classe impossible: ${error.message}`)
+    const assignment = data as unknown as ClassDocumentTemplateAssignmentRow | null
+    if (assignment) {
+      const template = await getTemplate(adminClient, assignment.template_id)
+      if (template.active && template.type === 'convention') return sanitizeTemplate(template)
+    }
+  }
+  return ensureConventionTemplate(adminClient, period.establishment_id)
+}
+
+async function listClasses(adminClient: AdminClient, establishmentId: string): Promise<ClassRow[]> {
+  const { data, error } = await adminClient
+    .from('classes')
+    .select('*')
+    .eq('establishment_id', establishmentId)
+    .order('name')
+  if (error) throw new Error(`Lecture classes impossible: ${error.message}`)
+  return (data as unknown as ClassRow[]) ?? []
+}
+
+async function listActiveClassTemplateAssignments(
+  adminClient: AdminClient,
+  establishmentId: string,
+): Promise<ClassDocumentTemplateAssignmentRow[]> {
+  const { data, error } = await adminClient
+    .from('class_document_template_assignments')
+    .select('*')
+    .eq('establishment_id', establishmentId)
+    .eq('type', 'convention')
+    .eq('active', true)
+  if (error) throw new Error(`Lecture affectations modeles impossible: ${error.message}`)
+  return (data as unknown as ClassDocumentTemplateAssignmentRow[]) ?? []
+}
+
+async function listConventionTemplates(adminClient: AdminClient, establishmentId: string): Promise<DocumentTemplateRow[]> {
+  const { data, error } = await adminClient
+    .from('document_templates')
+    .select('*')
+    .or(`establishment_id.is.null,establishment_id.eq.${establishmentId}`)
+    .eq('type', 'convention')
+    .eq('active', true)
+    .order('establishment_id', { ascending: false, nullsFirst: false })
+    .order('name')
+  if (error) throw new Error(`Lecture modeles convention impossible: ${error.message}`)
+  return ((data as unknown as DocumentTemplateRow[]) ?? []).map(sanitizeTemplate)
+}
+
+async function getClass(adminClient: AdminClient, classId: string): Promise<ClassRow> {
+  const { data, error } = await adminClient.from('classes').select('*').eq('id', classId).maybeSingle()
+  if (error) throw new Error(`Lecture classe impossible: ${error.message}`)
+  if (!data) throw new Error('Classe introuvable.')
+  return data as unknown as ClassRow
+}
+
+async function getTemplate(adminClient: AdminClient, templateId: string): Promise<DocumentTemplateRow> {
+  const { data, error } = await adminClient.from('document_templates').select('*').eq('id', templateId).maybeSingle()
+  if (error) throw new Error(`Lecture modele impossible: ${error.message}`)
+  if (!data) throw new Error('Modele introuvable.')
+  return sanitizeTemplate(data as unknown as DocumentTemplateRow)
 }
 
 async function fetchStudents(adminClient: AdminClient, ids: string[]): Promise<StudentRow[]> {
@@ -355,7 +552,35 @@ function validateSaveTemplateInput(data: unknown): { accessToken: string; establ
   return {
     accessToken: requiredString(record.accessToken, 'Token'),
     establishmentId: optionalUuid(record.establishmentId, 'Etablissement'),
-    template: { name, bodyMarkdown },
+    template: { name, bodyMarkdown, sourceFilename: clean(template.sourceFilename) || null },
+  }
+}
+
+function validateAssignTemplateInput(data: unknown): {
+  accessToken: string
+  establishmentId: string | null
+  classId: string
+  templateId: string
+} {
+  const record = asRecord(data)
+  return {
+    accessToken: requiredString(record.accessToken, 'Token'),
+    establishmentId: optionalUuid(record.establishmentId, 'Etablissement'),
+    classId: validateUuid(record.classId, 'Classe'),
+    templateId: validateUuid(record.templateId, 'Modele'),
+  }
+}
+
+function validateClearTemplateAssignmentInput(data: unknown): {
+  accessToken: string
+  establishmentId: string | null
+  classId: string
+} {
+  const record = asRecord(data)
+  return {
+    accessToken: requiredString(record.accessToken, 'Token'),
+    establishmentId: optionalUuid(record.establishmentId, 'Etablissement'),
+    classId: validateUuid(record.classId, 'Classe'),
   }
 }
 
@@ -377,6 +602,15 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function sanitizeTemplate(template: DocumentTemplateRow): DocumentTemplateRow {
   return JSON.parse(JSON.stringify(template, (_, value) => (value === undefined ? null : value))) as DocumentTemplateRow
+}
+
+function buildAiMappingDraft(bodyMarkdown: string): Record<string, unknown> {
+  const variableMatches = [...bodyMarkdown.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)].map((match) => match[1])
+  return {
+    detected_variables: [...new Set(variableMatches)],
+    source: 'heuristic',
+    ready_for_review: variableMatches.length > 0,
+  }
 }
 
 function indexById<T extends { id: string }>(rows: T[]): Map<string, T> {

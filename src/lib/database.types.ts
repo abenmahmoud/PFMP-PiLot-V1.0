@@ -365,6 +365,22 @@ export interface DocumentTemplateRow {
   variables: Json
   active: boolean
   version: number
+  source_filename: string | null
+  source_kind: 'manual' | 'docx_import' | 'ai_generated' | 'system'
+  ai_mapping: Json
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ClassDocumentTemplateAssignmentRow {
+  id: string
+  establishment_id: string
+  class_id: string
+  template_id: string
+  type: string
+  active: boolean
+  assigned_by: string | null
   created_at: string
   updated_at: string
 }
