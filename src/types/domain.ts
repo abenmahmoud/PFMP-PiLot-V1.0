@@ -57,10 +57,10 @@ export type StageStatus =
 
 export const STAGE_STATUS_LABELS: Record<StageStatus, string> = {
   draft: 'Brouillon',
-  confirmed: 'Confirmé',
-  no_stage: 'Pas de stage',
-  found: 'Stage trouvé',
-  pending_convention: 'Convention en attente',
+  confirmed: 'Valide DDFPT',
+  no_stage: 'Recherche stage',
+  found: 'Entreprise proposee',
+  pending_convention: 'Convention a signer',
   signed_convention: 'Convention signée',
   in_progress: 'En stage',
   completed: 'Terminé',

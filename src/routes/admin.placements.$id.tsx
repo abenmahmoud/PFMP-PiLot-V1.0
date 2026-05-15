@@ -5,11 +5,20 @@ import { AppLayout } from '@/components/AppLayout'
 import { EmptyState } from '@/components/EmptyState'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Select } from '@/components/ui/Field'
+import { Button } from '@/components/ui/Button'
+import {
+  PlacementFormModal,
+  type PlacementFormValues,
+} from '@/components/placements/PlacementFormModal'
 import { PlacementStatusBadge } from '@/components/placements/PlacementStatusBadge'
 import { PlacementTimeline } from '@/components/placements/PlacementTimeline'
 import { useAuth } from '@/lib/AuthProvider'
 import type { StageStatus } from '@/lib/database.types'
-import { updatePlacementStatus } from '@/server/placements.functions'
+import { listCompaniesForEstablishment, type CompanyWithTutors } from '@/server/companies.functions'
+import { updatePlacement, updatePlacementStatus } from '@/server/placements.functions'
+import type { PfmpPeriodWithStats } from '@/server/pfmpPeriods.functions'
+import { fetchTeachersWithStats } from '@/services/teachers'
+import type { TeacherWithStats } from '@/server/teachers.functions'
 import { fetchPlacementById, type PlacementDetail } from '@/services/placements'
 
 export const Route = createFileRoute('/admin/placements/$id')({
@@ -17,8 +26,11 @@ export const Route = createFileRoute('/admin/placements/$id')({
 })
 
 const NEXT_STATUSES: Array<{ value: StageStatus; label: string }> = [
-  { value: 'draft', label: 'Brouillon' },
-  { value: 'confirmed', label: 'Confirme' },
+  { value: 'no_stage', label: 'Recherche stage' },
+  { value: 'found', label: 'Entreprise proposee' },
+  { value: 'confirmed', label: 'Valide DDFPT' },
+  { value: 'pending_convention', label: 'Convention a signer' },
+  { value: 'signed_convention', label: 'Convention signee' },
   { value: 'in_progress', label: 'En stage' },
   { value: 'completed', label: 'Termine' },
   { value: 'cancelled', label: 'Annule' },
@@ -28,13 +40,26 @@ function AdminPlacementDetailPage() {
   const { id } = useParams({ from: '/admin/placements/$id' })
   const auth = useAuth()
   const [detail, setDetail] = useState<PlacementDetail | null>(null)
+  const [companies, setCompanies] = useState<CompanyWithTutors[]>([])
+  const [teachers, setTeachers] = useState<TeacherWithStats[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [modalError, setModalError] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   async function reload() {
     const next = await fetchPlacementById(id)
     setDetail(next)
+    const accessToken = auth.session?.access_token
+    if (accessToken) {
+      const [companyRows, teacherRows] = await Promise.all([
+        listCompaniesForEstablishment({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
+        fetchTeachersWithStats(accessToken, auth.activeEstablishmentId),
+      ])
+      setCompanies(companyRows)
+      setTeachers(teacherRows)
+    }
   }
 
   useEffect(() => {
@@ -80,6 +105,37 @@ function AdminPlacementDetailPage() {
     }
   }
 
+  async function handleUpdatePlacement(values: PlacementFormValues) {
+    const accessToken = auth.session?.access_token
+    if (!accessToken || !detail) return
+    setSubmitting(true)
+    setModalError(null)
+    try {
+      await updatePlacement({
+        data: {
+          accessToken,
+          establishmentId: auth.activeEstablishmentId,
+          placementId: detail.placement.id,
+          data: {
+            companyId: values.companyId,
+            tutorId: values.tutorId,
+            referentId: values.referentId,
+            startDate: values.startDate,
+            endDate: values.endDate,
+            status: values.status,
+            notes: values.notes,
+          },
+        },
+      })
+      setEditOpen(false)
+      await reload()
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (auth.loading || loading) {
     return (
       <AppLayout title="Placement PFMP" subtitle="Lecture des donnees...">
@@ -109,18 +165,23 @@ function AdminPlacementDetailPage() {
       title={detail.student ? `${detail.student.first_name} ${detail.student.last_name}` : 'Placement PFMP'}
       subtitle={detail.period?.name ?? 'Periode non renseignee'}
       actions={
-        <Select
-          value={detail.placement.status}
-          onChange={(event) => void setStatus(event.target.value as StageStatus)}
-          disabled={submitting}
-          className="w-44"
-        >
-          {NEXT_STATUSES.map((status) => (
-            <option key={status.value} value={status.value}>
-              {status.label}
-            </option>
-          ))}
-        </Select>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
+            Modifier dossier
+          </Button>
+          <Select
+            value={detail.placement.status}
+            onChange={(event) => void setStatus(event.target.value as StageStatus)}
+            disabled={submitting}
+            className="w-48"
+          >
+            {NEXT_STATUSES.map((status) => (
+              <option key={status.value} value={status.value}>
+                {status.label}
+              </option>
+            ))}
+          </Select>
+        </div>
       }
     >
       <div className="mb-4">
@@ -170,8 +231,45 @@ function AdminPlacementDetailPage() {
           </CardBody>
         </Card>
       </div>
+      <PlacementFormModal
+        open={editOpen}
+        accessToken={auth.session?.access_token ?? ''}
+        establishmentId={auth.activeEstablishmentId}
+        students={detail.student ? [detail.student] : []}
+        classes={[]}
+        periods={detail.period ? [toPeriodWithStats(detail)] : []}
+        companies={companies}
+        teachers={teachers}
+        initial={{
+          studentId: detail.placement.student_id,
+          periodId: detail.placement.period_id,
+          companyId: detail.placement.company_id,
+          tutorId: detail.placement.tutor_id,
+          referentId: detail.placement.referent_id,
+          startDate: detail.placement.start_date,
+          endDate: detail.placement.end_date,
+          status: detail.placement.status,
+          notes: detail.placement.notes,
+        }}
+        lockStudentPeriod
+        submitLabel="Enregistrer le dossier"
+        submitting={submitting}
+        error={modalError}
+        onClose={() => setEditOpen(false)}
+        onSubmit={handleUpdatePlacement}
+      />
     </AppLayout>
   )
+}
+
+function toPeriodWithStats(detail: PlacementDetail): PfmpPeriodWithStats {
+  return {
+    period: detail.period as NonNullable<PlacementDetail['period']>,
+    class: null,
+    studentCount: detail.student ? 1 : 0,
+    placementsCount: 1,
+    completedCount: detail.placement.status === 'completed' ? 1 : 0,
+  }
 }
 
 function Info({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

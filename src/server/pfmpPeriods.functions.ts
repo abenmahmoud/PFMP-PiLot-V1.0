@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import type { ClassRow, PeriodStatus, PfmpPeriodRow, PlacementRow, ProfileRow, UserRole } from '@/lib/database.types'
+import type { ClassRow, PeriodStatus, PfmpPeriodRow, PlacementRow, ProfileRow, StudentRow, UserRole } from '@/lib/database.types'
 import {
   clean,
   createAdminClient,
@@ -44,6 +44,14 @@ interface PeriodMutationInput extends AccessInput {
   periodId: string
 }
 
+export interface PeriodDossierSyncResult {
+  ok: true
+  periodId: string
+  classId: string | null
+  students: number
+  created: number
+}
+
 const READ_ROLES: UserRole[] = ['admin', 'ddfpt', 'principal', 'referent', 'superadmin']
 const MANAGE_ROLES: UserRole[] = ['admin', 'ddfpt', 'superadmin']
 const PERIOD_TYPES: PfmpPeriodType[] = ['pfmp_1', 'pfmp_2', 'pfmp_3', 'stage_decouverte', 'autre']
@@ -86,12 +94,18 @@ export const createPfmpPeriod = createServerFn({ method: 'POST' })
 
       const period = await insertPeriod(adminClient, establishmentId, data.data)
       await syncPeriodClassLink(adminClient, period.id, period.class_id)
+      const sync = await ensureStudentDossiersForPeriod(adminClient, period)
       await insertAuditLog(adminClient, {
         establishmentId,
         userId: caller.id,
         action: 'pfmp_period.created',
         description: `Periode PFMP creee: ${period.name}`,
-        metadata: { period_id: period.id, class_id: period.class_id, source: 'server.pfmpPeriods' },
+        metadata: {
+          period_id: period.id,
+          class_id: period.class_id,
+          dossiers_created: sync.created,
+          source: 'server.pfmpPeriods',
+        },
       })
       return period
     })
@@ -110,12 +124,18 @@ export const updatePfmpPeriod = createServerFn({ method: 'POST' })
 
       const updated = await updatePeriodRow(adminClient, period.id, data.data)
       if (data.data.classId !== undefined) await syncPeriodClassLink(adminClient, updated.id, updated.class_id)
+      const sync = await ensureStudentDossiersForPeriod(adminClient, updated)
       await insertAuditLog(adminClient, {
         establishmentId: period.establishment_id,
         userId: caller.id,
         action: 'pfmp_period.updated',
         description: `Periode PFMP modifiee: ${updated.name}`,
-        metadata: { period_id: updated.id, class_id: updated.class_id, source: 'server.pfmpPeriods' },
+        metadata: {
+          period_id: updated.id,
+          class_id: updated.class_id,
+          dossiers_created: sync.created,
+          source: 'server.pfmpPeriods',
+        },
       })
       return updated
     })
@@ -187,14 +207,43 @@ export const publishPfmpPeriod = createServerFn({ method: 'POST' })
       assertSameTenant(caller, period.establishment_id, data.establishmentId)
 
       const updated = await updatePeriodRow(adminClient, period.id, { status: 'published' })
+      const sync = await ensureStudentDossiersForPeriod(adminClient, updated)
       await insertAuditLog(adminClient, {
         establishmentId: period.establishment_id,
         userId: caller.id,
         action: 'pfmp_period.published',
         description: `Periode PFMP publiee: ${period.name}`,
-        metadata: { period_id: period.id, source: 'server.pfmpPeriods' },
+        metadata: { period_id: period.id, dossiers_created: sync.created, source: 'server.pfmpPeriods' },
       })
       return updated
+    })
+  })
+
+export const syncPfmpPeriodStudentDossiers = createServerFn({ method: 'POST' })
+  .inputValidator(validateMutationInput)
+  .handler(async ({ data }): Promise<PeriodDossierSyncResult> => {
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      assertCanManagePeriods(caller)
+      const period = await getPeriodById(adminClient, data.periodId)
+      assertSameTenant(caller, period.establishment_id, data.establishmentId)
+
+      const sync = await ensureStudentDossiersForPeriod(adminClient, period)
+      await insertAuditLog(adminClient, {
+        establishmentId: period.establishment_id,
+        userId: caller.id,
+        action: 'pfmp_period.dossiers_synced',
+        description: `Dossiers eleves synchronises: ${period.name}`,
+        metadata: {
+          period_id: period.id,
+          class_id: period.class_id,
+          students: sync.students,
+          created: sync.created,
+          source: 'server.pfmpPeriods',
+        },
+      })
+      return sync
     })
   })
 
@@ -297,6 +346,64 @@ async function syncPeriodClassLink(adminClient: AdminClient, periodId: string, c
   if (!classId) return
   const { error } = await adminClient.from('pfmp_period_classes').insert({ period_id: periodId, class_id: classId })
   if (error) throw new Error(`Lien classe periode impossible: ${error.message}`)
+}
+
+async function ensureStudentDossiersForPeriod(
+  adminClient: AdminClient,
+  period: PfmpPeriodRow,
+): Promise<PeriodDossierSyncResult> {
+  if (!period.class_id) {
+    return { ok: true, periodId: period.id, classId: null, students: 0, created: 0 }
+  }
+
+  const { data: studentRows, error: studentsError } = await adminClient
+    .from('students')
+    .select('*')
+    .eq('establishment_id', period.establishment_id)
+    .eq('class_id', period.class_id)
+    .is('archived_at', null)
+  if (studentsError) throw new Error(`Lecture eleves periode impossible: ${studentsError.message}`)
+
+  const students = (studentRows as unknown as StudentRow[]) ?? []
+  if (students.length === 0) {
+    return { ok: true, periodId: period.id, classId: period.class_id, students: 0, created: 0 }
+  }
+
+  const studentIds = students.map((student) => student.id)
+  const { data: existingRows, error: existingError } = await adminClient
+    .from('placements')
+    .select('student_id')
+    .eq('period_id', period.id)
+    .in('student_id', studentIds)
+    .is('archived_at', null)
+  if (existingError) throw new Error(`Lecture dossiers PFMP existants impossible: ${existingError.message}`)
+
+  const existing = new Set(((existingRows as Array<{ student_id: string }>) ?? []).map((row) => row.student_id))
+  const missing = students.filter((student) => !existing.has(student.id))
+  if (missing.length === 0) {
+    return { ok: true, periodId: period.id, classId: period.class_id, students: students.length, created: 0 }
+  }
+
+  const now = new Date().toISOString()
+  const { error: insertError } = await adminClient.from('placements').insert(
+    missing.map((student) => ({
+      establishment_id: period.establishment_id,
+      student_id: student.id,
+      period_id: period.id,
+      company_id: null,
+      tutor_id: null,
+      referent_id: null,
+      start_date: null,
+      end_date: null,
+      status: 'no_stage',
+      notes: 'Dossier PFMP ouvert automatiquement: eleve en recherche de stage.',
+      created_at: now,
+      updated_at: now,
+    })),
+  )
+  if (insertError) throw new Error(`Creation dossiers PFMP eleves impossible: ${insertError.message}`)
+
+  return { ok: true, periodId: period.id, classId: period.class_id, students: students.length, created: missing.length }
 }
 
 async function getPeriodById(adminClient: AdminClient, periodId: string): Promise<PfmpPeriodRow> {

@@ -2,19 +2,26 @@ import type { StageStatus } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
 const STEPS: Array<{ status: StageStatus; label: string }> = [
-  { status: 'draft', label: 'Brouillon' },
-  { status: 'confirmed', label: 'Confirmé' },
+  { status: 'no_stage', label: 'Recherche' },
+  { status: 'found', label: 'Entreprise' },
+  { status: 'confirmed', label: 'Validation' },
+  { status: 'signed_convention', label: 'Convention' },
   { status: 'in_progress', label: 'En stage' },
-  { status: 'completed', label: 'Terminé' },
+  { status: 'completed', label: 'Termine' },
 ]
 
 export function PlacementTimeline({ status }: { status: StageStatus }) {
-  const index = status === 'cancelled' || status === 'interrupted'
+  const normalized = status === 'draft'
+    ? 'no_stage'
+    : status === 'pending_convention'
+      ? 'signed_convention'
+      : status
+  const index = normalized === 'cancelled' || normalized === 'interrupted'
     ? -1
-    : Math.max(0, STEPS.findIndex((step) => step.status === status))
+    : Math.max(0, STEPS.findIndex((step) => step.status === normalized))
 
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
       {STEPS.map((step, stepIndex) => {
         const active = index >= stepIndex
         return (
@@ -31,9 +38,9 @@ export function PlacementTimeline({ status }: { status: StageStatus }) {
           </div>
         )
       })}
-      {(status === 'cancelled' || status === 'interrupted') && (
-        <p className="col-span-4 text-xs font-medium text-[var(--color-danger-fg)]">
-          Placement annulé ou interrompu.
+      {(normalized === 'cancelled' || normalized === 'interrupted') && (
+        <p className="col-span-2 sm:col-span-6 text-xs font-medium text-[var(--color-danger-fg)]">
+          Placement annule ou interrompu.
         </p>
       )}
     </div>

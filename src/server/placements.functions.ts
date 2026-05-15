@@ -686,23 +686,28 @@ function validateCreateData(record: Record<string, unknown>): PlacementCreateInp
   const startDate = optionalDate(record.startDate, 'Date debut')
   const endDate = optionalDate(record.endDate, 'Date fin')
   if (startDate && endDate && endDate < startDate) throw new Error('La date de fin doit etre apres la date de debut.')
+  const companyId = optionalUuid(record.companyId, 'Entreprise')
+  const status = optionalEnum(record.status, PLACEMENT_STATUSES, 'Statut') ?? (companyId ? 'found' : 'no_stage')
   return {
     establishmentId: optionalUuid(record.establishmentId, 'Etablissement'),
     studentId: validateUuid(record.studentId, 'Eleve'),
     periodId: validateUuid(record.periodId, 'Periode'),
-    companyId: optionalUuid(record.companyId, 'Entreprise'),
+    companyId,
     tutorId: optionalUuid(record.tutorId, 'Tuteur'),
     referentId: optionalUuid(record.referentId, 'Referent'),
     startDate,
     endDate,
-    status: optionalEnum(record.status, PLACEMENT_STATUSES, 'Statut') ?? 'draft',
+    status,
     notes: optionalText(record.notes),
   }
 }
 
 function validateUpdateData(record: Record<string, unknown>): PlacementUpdateInput {
   const result: PlacementUpdateInput = {}
-  if (record.companyId !== undefined) result.companyId = optionalUuid(record.companyId, 'Entreprise')
+  if (record.companyId !== undefined) {
+    result.companyId = optionalUuid(record.companyId, 'Entreprise')
+    if (result.companyId && record.status === undefined) result.status = 'found'
+  }
   if (record.tutorId !== undefined) result.tutorId = optionalUuid(record.tutorId, 'Tuteur')
   if (record.referentId !== undefined) result.referentId = optionalUuid(record.referentId, 'Referent')
   if (record.startDate !== undefined) result.startDate = optionalDate(record.startDate, 'Date debut')

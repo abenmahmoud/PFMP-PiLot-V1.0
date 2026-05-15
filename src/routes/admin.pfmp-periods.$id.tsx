@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { AlertTriangle, ArrowLeft, Calendar, Plus, Users } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Calendar, Plus, RefreshCw, Users } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
 import { EmptyState } from '@/components/EmptyState'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Select } from '@/components/ui/Field'
 import {
   PlacementFormModal,
   placementValuesToCreateInput,
@@ -14,10 +15,15 @@ import {
 import { PlacementStatusBadge } from '@/components/placements/PlacementStatusBadge'
 import { useAuth } from '@/lib/AuthProvider'
 import { isDemoMode } from '@/lib/supabase'
-import type { ClassRow, StudentRow } from '@/lib/database.types'
+import type { ClassRow, PeriodStatus, StudentRow } from '@/lib/database.types'
 import { listCompaniesForEstablishment, type CompanyWithTutors } from '@/server/companies.functions'
 import { createPlacement, listPlacementsForPeriod, type PlacementWithRelations } from '@/server/placements.functions'
-import { listPfmpPeriodsForEstablishment, type PfmpPeriodWithStats } from '@/server/pfmpPeriods.functions'
+import {
+  listPfmpPeriodsForEstablishment,
+  syncPfmpPeriodStudentDossiers,
+  updatePfmpPeriod,
+  type PfmpPeriodWithStats,
+} from '@/server/pfmpPeriods.functions'
 import { fetchTeachersWithStats } from '@/services/teachers'
 import type { TeacherWithStats } from '@/server/teachers.functions'
 import { listTenantStudentsAndClasses } from '@/server/tenantReference.functions'
@@ -51,6 +57,17 @@ function AdminPeriodDetailSupabase() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [statusSubmitting, setStatusSubmitting] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
+
+  const PERIOD_STATUS_OPTIONS: Array<{ value: PeriodStatus; label: string }> = [
+    { value: 'draft', label: 'Brouillon' },
+    { value: 'published', label: 'Publiee' },
+    { value: 'preparation', label: 'Preparation' },
+    { value: 'in_progress', label: 'En cours' },
+    { value: 'completed', label: 'Terminee' },
+    { value: 'cancelled', label: 'Annulee' },
+  ]
 
   async function reload() {
     const accessToken = auth.session?.access_token
@@ -112,6 +129,51 @@ function AdminPeriodDetailSupabase() {
     }
   }
 
+  async function handleStatusChange(status: PeriodStatus) {
+    const accessToken = auth.session?.access_token
+    if (!accessToken || !period) return
+    setStatusSubmitting(true)
+    setError(null)
+    try {
+      await updatePfmpPeriod({
+        data: {
+          accessToken,
+          establishmentId: auth.activeEstablishmentId,
+          periodId: period.period.id,
+          data: { status },
+        },
+      })
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setStatusSubmitting(false)
+    }
+  }
+
+  async function handleSyncDossiers() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken || !period) return
+    setSubmitting(true)
+    setSyncMessage(null)
+    setError(null)
+    try {
+      const result = await syncPfmpPeriodStudentDossiers({
+        data: {
+          accessToken,
+          establishmentId: auth.activeEstablishmentId,
+          periodId: period.period.id,
+        },
+      })
+      setSyncMessage(`${result.created} dossier(s) cree(s), ${result.students} eleve(s) controles.`)
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (auth.loading || loading) {
     return (
       <AppLayout title="Periode PFMP" subtitle="Lecture des donnees...">
@@ -146,9 +208,32 @@ function AdminPeriodDetailSupabase() {
         title={period.period.name}
         subtitle={`${period.class?.name ?? 'Classe non rattachee'} - ${formatDate(period.period.start_date)} au ${formatDate(period.period.end_date)}`}
         actions={
-          <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
-            Affecter eleve
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Select
+              className="w-44"
+              value={period.period.status}
+              onChange={(event) => void handleStatusChange(event.target.value as PeriodStatus)}
+              disabled={statusSubmitting}
+            >
+              {PERIOD_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            <Button
+              size="sm"
+              variant="secondary"
+              iconLeft={<RefreshCw className="w-4 h-4" />}
+              onClick={handleSyncDossiers}
+              disabled={submitting}
+            >
+              Creer dossiers manquants
+            </Button>
+            <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
+              Ajouter dossier
+            </Button>
+          </div>
         }
       >
         <div className="mb-4">
@@ -162,7 +247,7 @@ function AdminPeriodDetailSupabase() {
             </CardHeader>
             <CardBody className="grid grid-cols-3 gap-3 text-center">
               <Metric label="Eleves" value={period.studentCount} />
-              <Metric label="Placements" value={period.placementsCount} />
+              <Metric label="Dossiers" value={period.placementsCount} />
               <Metric label="Termines" value={period.completedCount} />
             </CardBody>
           </Card>
@@ -172,7 +257,10 @@ function AdminPeriodDetailSupabase() {
             </CardHeader>
             <CardBody className="p-0">
               {placements.length === 0 ? (
-                <EmptyState title="Aucun placement" description="Affectez les eleves a une entreprise pour demarrer la campagne PFMP." />
+                <EmptyState
+                  title="Aucun dossier PFMP"
+                  description="Les dossiers eleves sont crees automatiquement a la creation de la periode. Utilisez Creer dossiers manquants si cette periode existait deja."
+                />
               ) : (
                 <ul className="divide-y divide-[var(--color-border)]">
                   {placements.map((item) => (
@@ -200,6 +288,11 @@ function AdminPeriodDetailSupabase() {
             </CardBody>
           </Card>
         </div>
+        {syncMessage && (
+          <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            {syncMessage}
+          </p>
+        )}
       </AppLayout>
       <PlacementFormModal
         open={modalOpen}

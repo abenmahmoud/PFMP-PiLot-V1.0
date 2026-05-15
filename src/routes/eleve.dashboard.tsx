@@ -181,7 +181,7 @@ function StageCard({ dashboard }: { dashboard: StudentPublicDashboard }) {
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/40 p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text)]">
               <CalendarRange className="w-4 h-4 text-[var(--color-text-muted)]" />
-              Periode de stage
+              Dossier PFMP
             </div>
             <p className="mt-2 text-sm text-[var(--color-text-muted)]">
               {formatDate(placement.startDate)} - {formatDate(placement.endDate)}
@@ -342,11 +342,11 @@ function isStudentPublicSession(value: unknown): value is StudentPublicSession {
 
 function getStageLabel(status: string): string {
   const labels: Record<string, string> = {
-    draft: 'Stage en preparation',
-    confirmed: 'Stage confirme',
-    no_stage: 'Stage non assigne',
-    found: 'Stage trouve',
-    pending_convention: 'Convention en attente',
+    draft: 'Dossier en preparation',
+    confirmed: 'Stage valide par le lycee',
+    no_stage: 'Recherche de stage',
+    found: 'Entreprise proposee',
+    pending_convention: 'Convention a signer',
     signed_convention: 'Convention signee',
     in_progress: 'Stage en cours',
     completed: 'Stage termine',

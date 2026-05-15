@@ -40,8 +40,11 @@ function AdminPlacementsRoutePage() {
 
 const STATUS_OPTIONS: Array<{ value: 'all' | StageStatus; label: string }> = [
   { value: 'all', label: 'Tous statuts' },
-  { value: 'draft', label: 'Brouillon' },
-  { value: 'confirmed', label: 'Confirme' },
+  { value: 'no_stage', label: 'Recherche stage' },
+  { value: 'found', label: 'Entreprise proposee' },
+  { value: 'confirmed', label: 'Valide DDFPT' },
+  { value: 'pending_convention', label: 'Convention a signer' },
+  { value: 'signed_convention', label: 'Convention signee' },
   { value: 'in_progress', label: 'En stage' },
   { value: 'completed', label: 'Termine' },
   { value: 'cancelled', label: 'Annule' },
@@ -188,7 +191,7 @@ function AdminPlacementsSupabase() {
         subtitle={`${filtered.length} placements visibles`}
         actions={
           <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
-            Nouveau placement
+            Nouveau dossier PFMP
           </Button>
         }
       >
@@ -223,7 +226,10 @@ function AdminPlacementsSupabase() {
               </Select>
             </div>
             {filtered.length === 0 ? (
-              <EmptyState title="Aucun placement" description="Creez un placement depuis cette page ou une periode PFMP." />
+              <EmptyState
+                title="Aucun dossier PFMP"
+                description="Creez une periode PFMP rattachee a une classe: les dossiers eleves seront ouverts automatiquement en recherche de stage."
+              />
             ) : (
               <ul className="divide-y divide-[var(--color-border)]">
                 {filtered.map((item) => (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { ClassRow, StageStatus, StudentRow } from '@/lib/database.types'
 import type { CompanyWithTutors } from '@/server/companies.functions'
@@ -32,6 +32,9 @@ export function PlacementFormModal({
   periods,
   companies,
   teachers,
+  initial,
+  lockStudentPeriod = false,
+  submitLabel = 'Creer le dossier PFMP',
   submitting,
   error,
   onClose,
@@ -45,22 +48,17 @@ export function PlacementFormModal({
   periods: PfmpPeriodWithStats[]
   companies: CompanyWithTutors[]
   teachers: TeacherWithStats[]
+  initial?: Partial<PlacementFormValues>
+  lockStudentPeriod?: boolean
+  submitLabel?: string
   submitting?: boolean
   error?: string | null
   onClose: () => void
   onSubmit: (values: PlacementFormValues) => Promise<void> | void
 }) {
-  const [values, setValues] = useState<PlacementFormValues>({
-    studentId: students[0]?.id ?? '',
-    periodId: periods[0]?.period.id ?? '',
-    companyId: null,
-    tutorId: null,
-    referentId: null,
-    startDate: null,
-    endDate: null,
-    status: 'draft',
-    notes: null,
-  })
+  const [values, setValues] = useState<PlacementFormValues>(() =>
+    buildInitialValues(students, periods, initial),
+  )
   const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([])
   const [suggestLoading, setSuggestLoading] = useState(false)
   const [suggestError, setSuggestError] = useState<string | null>(null)
@@ -71,6 +69,26 @@ export function PlacementFormModal({
     const student = students.find((item) => item.id === values.studentId)
     return student?.class_id ? classes.find((klass) => klass.id === student.class_id) ?? null : null
   }, [classes, students, values.studentId])
+
+  useEffect(() => {
+    if (!open) return
+    setValues(buildInitialValues(students, periods, initial))
+    setSuggestions([])
+    setSuggestError(null)
+  }, [
+    open,
+    students[0]?.id,
+    periods[0]?.period.id,
+    initial?.studentId,
+    initial?.periodId,
+    initial?.companyId,
+    initial?.tutorId,
+    initial?.referentId,
+    initial?.startDate,
+    initial?.endDate,
+    initial?.status,
+    initial?.notes,
+  ])
 
   if (!open) return null
 
@@ -104,6 +122,7 @@ export function PlacementFormModal({
       ...current,
       companyId: suggestion.company.id,
       tutorId: company?.tutors.find((tutor) => !tutor.archived_at)?.id ?? null,
+      status: current.status === 'no_stage' || current.status === 'draft' ? 'found' : current.status,
     }))
   }
 
@@ -117,9 +136,9 @@ export function PlacementFormModal({
         }}
       >
         <div className="px-5 py-4 border-b border-[var(--color-border)]">
-          <h2 className="text-base font-semibold">Affecter un eleve</h2>
+          <h2 className="text-base font-semibold">Dossier PFMP eleve</h2>
           <p className="text-sm text-[var(--color-text-muted)]">
-            Choisissez une periode, une entreprise, un tuteur et un referent PFMP.
+            Ouvrez le dossier PFMP de l eleve. L entreprise, les dates, le tuteur et le referent peuvent etre ajoutes plus tard.
           </p>
         </div>
 
@@ -140,6 +159,7 @@ export function PlacementFormModal({
                   setSuggestions([])
                 }}
                 required
+                disabled={lockStudentPeriod}
               >
                 <option value="">Selectionner</option>
                 {students.map((student) => (
@@ -154,7 +174,7 @@ export function PlacementFormModal({
             </div>
             <div>
               <Label>Periode</Label>
-              <Select value={values.periodId} onChange={(event) => patch('periodId', event.target.value)} required>
+              <Select value={values.periodId} onChange={(event) => patch('periodId', event.target.value)} required disabled={lockStudentPeriod}>
                 <option value="">Selectionner</option>
                 {periods.map((period) => (
                   <option key={period.period.id} value={period.period.id}>
@@ -178,8 +198,11 @@ export function PlacementFormModal({
             <div>
               <Label>Statut</Label>
               <Select value={values.status} onChange={(event) => patch('status', event.target.value as StageStatus)}>
-                <option value="draft">Brouillon</option>
-                <option value="confirmed">Confirme</option>
+                <option value="no_stage">Recherche stage</option>
+                <option value="found">Entreprise proposee</option>
+                <option value="confirmed">Valide DDFPT</option>
+                <option value="pending_convention">Convention a signer</option>
+                <option value="signed_convention">Convention signee</option>
                 <option value="in_progress">En stage</option>
                 <option value="completed">Termine</option>
                 <option value="cancelled">Annule</option>
@@ -230,8 +253,15 @@ export function PlacementFormModal({
               <Select
                 value={values.companyId ?? ''}
                 onChange={(event) => {
-                  patch('companyId', event.target.value || null)
-                  patch('tutorId', null)
+                  const companyId = event.target.value || null
+                  setValues((current) => ({
+                    ...current,
+                    companyId,
+                    tutorId: null,
+                    status: companyId && (current.status === 'no_stage' || current.status === 'draft')
+                      ? 'found'
+                      : current.status,
+                  }))
                 }}
               >
                 <option value="">Aucune</option>
@@ -267,7 +297,7 @@ export function PlacementFormModal({
             Annuler
           </Button>
           <Button type="submit" disabled={submitting || !values.studentId || !values.periodId}>
-            {submitting ? 'Creation...' : 'Creer le placement'}
+            {submitting ? 'Enregistrement...' : submitLabel}
           </Button>
         </div>
       </form>
@@ -287,5 +317,23 @@ export function placementValuesToCreateInput(values: PlacementFormValues, establ
     endDate: values.endDate,
     status: values.status,
     notes: values.notes,
+  }
+}
+
+function buildInitialValues(
+  students: StudentRow[],
+  periods: PfmpPeriodWithStats[],
+  initial?: Partial<PlacementFormValues>,
+): PlacementFormValues {
+  return {
+    studentId: initial?.studentId ?? students[0]?.id ?? '',
+    periodId: initial?.periodId ?? periods[0]?.period.id ?? '',
+    companyId: initial?.companyId ?? null,
+    tutorId: initial?.tutorId ?? null,
+    referentId: initial?.referentId ?? null,
+    startDate: initial?.startDate ?? null,
+    endDate: initial?.endDate ?? null,
+    status: initial?.status ?? 'no_stage',
+    notes: initial?.notes ?? null,
   }
 }

@@ -47,7 +47,7 @@ export function PeriodFormModal({
     startDate: initial?.startDate ?? '',
     endDate: initial?.endDate ?? '',
     schoolYear: initial?.schoolYear ?? currentSchoolYear(),
-    status: initial?.status ?? 'draft',
+    status: initial?.status ?? 'published',
     notes: initial?.notes ?? null,
   }))
 
@@ -68,7 +68,9 @@ export function PeriodFormModal({
       >
         <div className="px-5 py-4 border-b border-[var(--color-border)]">
           <h2 className="text-base font-semibold">Periode PFMP</h2>
-          <p className="text-sm text-[var(--color-text-muted)]">Calendrier d'une classe et suivi des placements.</p>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            La creation ouvre automatiquement un dossier PFMP en recherche pour chaque eleve de la classe.
+          </p>
         </div>
 
         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">

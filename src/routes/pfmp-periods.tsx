@@ -9,9 +9,10 @@ import { PeriodStatusBadge } from '@/components/StatusBadge'
 import { PeriodFormModal, periodValuesToCreateInput, type PeriodFormValues } from '@/components/pfmpPeriods/PeriodFormModal'
 import { PeriodCalendarView } from '@/components/pfmpPeriods/PeriodCalendarView'
 import { useAuth } from '@/lib/AuthProvider'
-import { getSupabase, isDemoMode } from '@/lib/supabase'
+import { isDemoMode } from '@/lib/supabase'
 import type { ClassRow } from '@/lib/database.types'
 import { createPfmpPeriod, listPfmpPeriodsForEstablishment, type PfmpPeriodWithStats } from '@/server/pfmpPeriods.functions'
+import { listTenantStudentsAndClasses } from '@/server/tenantReference.functions'
 import { classes, pfmpPeriods } from '@/data/demo'
 
 export const Route = createFileRoute('/pfmp-periods')({
@@ -43,19 +44,17 @@ function PeriodsSupabase() {
   async function reload() {
     const accessToken = auth.session?.access_token
     if (!accessToken) return
-    const sb = getSupabase()
-    const [periods, classesResult] = await Promise.all([
+    const [periods, references] = await Promise.all([
       listPfmpPeriodsForEstablishment({
         data: {
           accessToken,
           establishmentId: auth.activeEstablishmentId,
         },
       }),
-      sb.from('classes').select('*').order('name'),
+      listTenantStudentsAndClasses({ data: { accessToken, establishmentId: auth.activeEstablishmentId } }),
     ])
-    if (classesResult.error) throw new Error(`Lecture classes impossible: ${classesResult.error.message}`)
     setItems(periods)
-    setClassRows((classesResult.data as ClassRow[]) ?? [])
+    setClassRows(references.classes)
   }
 
   useEffect(() => {
@@ -226,7 +225,7 @@ function PeriodCard({ item, isProfPortal }: { item: PfmpPeriodWithStats; isProfP
       </CardHeader>
       <CardBody className="grid grid-cols-3 gap-3 text-center">
         <Stat label="Eleves" value={item.studentCount} />
-        <Stat label="Placements" value={item.placementsCount} />
+                <Stat label="Dossiers" value={item.placementsCount} />
         <Stat label="Termines" value={item.completedCount} />
         {isProfPortal ? (
           <Link
