@@ -162,20 +162,27 @@ function DashboardSupabase() {
     <AppLayout title="Dashboard établissement" subtitle={subtitle}>
       <div className="space-y-6">
         <SetupChecklist steps={buildSetupSteps(data.setupChecklist)} />
-        {!period ? (
-          <EmptyState
-            icon={<Calendar className="w-5 h-5" />}
-            title="Aucune période PFMP en cours"
-            description="Créez ou activez une période PFMP pour commencer à suivre les affectations, visites et documents réels de l'établissement."
-            action={
-              <Link to="/pfmp-periods">
-                <Button iconLeft={<Plus className="w-4 h-4" />}>Créer une période PFMP</Button>
+        {!period && (
+          <Card>
+            <CardHeader>
+              <CardTitle icon={<Calendar className="w-4 h-4" />}>Campagne PFMP a lancer</CardTitle>
+              <Badge tone="warning">Action requise</Badge>
+            </CardHeader>
+            <CardBody className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text)]">Aucune periode active ou publiee.</p>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+                  Le cockpit reste disponible pour suivre annuaire, entreprises, dossiers, documents et alertes.
+                  Creez une periode pour ouvrir automatiquement les dossiers eleves et leurs conventions.
+                </p>
+              </div>
+              <Link to="/admin/pfmp-periods">
+                <Button iconLeft={<Plus className="w-4 h-4" />}>Creer une periode PFMP</Button>
               </Link>
-            }
-          />
-        ) : (
-          <DashboardSupabaseContent data={data} />
+            </CardBody>
+          </Card>
         )}
+        <DashboardSupabaseContent data={data} />
       </div>
     </AppLayout>
   )

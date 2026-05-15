@@ -27,6 +27,22 @@ export interface DocumentSummary {
   archived: number
 }
 
+export async function fetchDocumentPeriods(): Promise<PfmpPeriodRow[]> {
+  const sb = getSupabase()
+  const scope = await getActiveEstablishmentScope()
+  let query = sb
+    .from('pfmp_periods')
+    .select('*')
+    .is('archived_at', null)
+    .order('start_date', { ascending: false })
+
+  if (scope) query = query.eq('establishment_id', scope)
+
+  const { data, error } = await query
+  if (error) throw new Error(`fetchDocumentPeriods: ${error.message}`)
+  return (data as PfmpPeriodRow[]) ?? []
+}
+
 export async function fetchDocuments(filters: DocumentFilters = {}): Promise<DocumentListItem[]> {
   const sb = getSupabase()
   const scope = await getActiveEstablishmentScope()

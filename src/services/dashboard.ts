@@ -76,13 +76,45 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const periodId = currentPeriod?.id
 
   if (!periodId) {
-    const [alerts, activity] = await Promise.all([fetchAlerts(6, scope), fetchActivityLog(6, scope)])
+    const [placementsResult, documentsResult, teachersResult, companiesResult, alerts, activity] = await Promise.all([
+      applyEstablishmentScope(
+        sb.from('placements').select('status, company_id, referent_id').is('archived_at', null),
+        scope,
+      ),
+      applyEstablishmentScope(sb.from('documents').select('type, status').is('archived_at', null), scope),
+      applyEstablishmentScope(sb.from('teachers').select('id, first_name, last_name').order('last_name'), scope),
+      applyEstablishmentScope(
+        sb
+          .from('companies')
+          .select('id, name, city, sector, professional_family, status, students_hosted')
+          .order('name'),
+        scope,
+      ),
+      fetchAlerts(50, scope),
+      fetchActivityLog(6, scope),
+    ])
+    if (placementsResult.error) throw new Error(`fetchDashboardData placements: ${placementsResult.error.message}`)
+    if (documentsResult.error) throw new Error(`fetchDashboardData documents: ${documentsResult.error.message}`)
+    if (teachersResult.error) throw new Error(`fetchDashboardData teachers: ${teachersResult.error.message}`)
+    if (companiesResult.error) throw new Error(`fetchDashboardData companies: ${companiesResult.error.message}`)
+
+    const placements =
+      (placementsResult.data as Pick<PlacementRow, 'status' | 'company_id' | 'referent_id'>[]) ?? []
+    const documents = (documentsResult.data as Pick<DocumentRow, 'type' | 'status'>[]) ?? []
+    const teachers =
+      (teachersResult.data as Pick<TeacherRow, 'id' | 'first_name' | 'last_name'>[]) ?? []
+    const companies =
+      (companiesResult.data as Pick<
+        CompanyRow,
+        'id' | 'name' | 'city' | 'sector' | 'professional_family' | 'status' | 'students_hosted'
+      >[]) ?? []
+
     return {
       currentPeriod,
-      kpis: emptyKpis(0),
-      teacherLoads: [],
-      companyNetwork: emptyCompanyNetwork(),
-      alerts,
+      kpis: buildKpisFromRows(placements, documents, alerts, 0),
+      teacherLoads: buildTeacherLoadsFromRows(teachers, placements),
+      companyNetwork: buildCompanyNetworkFromRows(companies, placements),
+      alerts: alerts.slice(0, 6),
       activity,
       setupChecklist,
     }
@@ -192,7 +224,7 @@ export async function fetchCurrentPeriod(scope?: string | null): Promise<PfmpPer
     sb
     .from('pfmp_periods')
     .select('*')
-    .eq('status', 'in_progress')
+    .in('status', ['in_progress', 'published', 'preparation'])
     .order('start_date', { ascending: false })
     .limit(1),
     scope,
@@ -400,20 +432,6 @@ function emptyKpis(studentsTotal: number): DashboardKpis {
     assignmentRate: 0,
     visitRate: 0,
     documentsReadyRate: 0,
-  }
-}
-
-function emptyCompanyNetwork(): DashboardCompanyNetwork {
-  return {
-    totalCompanies: 0,
-    activeOnPeriod: 0,
-    strongPartners: 0,
-    toRecontact: 0,
-    familiesCovered: 0,
-    familiesTotal: 0,
-    topSectors: [],
-    toRecontactCompanies: [],
-    underrepresentedFamilies: [],
   }
 }
 

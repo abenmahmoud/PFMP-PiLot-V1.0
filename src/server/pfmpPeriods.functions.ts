@@ -9,6 +9,7 @@ import {
   validateUuid,
   type AdminClient,
 } from './_lib'
+import { ensureConventionDocumentsForPeriodInternal } from './documents.functions'
 
 export type PfmpPeriodType = 'pfmp_1' | 'pfmp_2' | 'pfmp_3' | 'stage_decouverte' | 'autre'
 
@@ -50,6 +51,8 @@ export interface PeriodDossierSyncResult {
   classId: string | null
   students: number
   created: number
+  conventionDocumentsCreated?: number
+  conventionDocumentsUpdated?: number
 }
 
 const READ_ROLES: UserRole[] = ['admin', 'ddfpt', 'principal', 'referent', 'superadmin']
@@ -95,6 +98,7 @@ export const createPfmpPeriod = createServerFn({ method: 'POST' })
       const period = await insertPeriod(adminClient, establishmentId, data.data)
       await syncPeriodClassLink(adminClient, period.id, period.class_id)
       const sync = await ensureStudentDossiersForPeriod(adminClient, period)
+      const conventionSync = await ensureConventionDocumentsForPeriodInternal(adminClient, caller, period.id, establishmentId)
       await insertAuditLog(adminClient, {
         establishmentId,
         userId: caller.id,
@@ -104,6 +108,8 @@ export const createPfmpPeriod = createServerFn({ method: 'POST' })
           period_id: period.id,
           class_id: period.class_id,
           dossiers_created: sync.created,
+          convention_documents_created: conventionSync.created,
+          convention_documents_updated: conventionSync.updated,
           source: 'server.pfmpPeriods',
         },
       })
@@ -125,6 +131,7 @@ export const updatePfmpPeriod = createServerFn({ method: 'POST' })
       const updated = await updatePeriodRow(adminClient, period.id, data.data)
       if (data.data.classId !== undefined) await syncPeriodClassLink(adminClient, updated.id, updated.class_id)
       const sync = await ensureStudentDossiersForPeriod(adminClient, updated)
+      const conventionSync = await ensureConventionDocumentsForPeriodInternal(adminClient, caller, updated.id, period.establishment_id)
       await insertAuditLog(adminClient, {
         establishmentId: period.establishment_id,
         userId: caller.id,
@@ -134,6 +141,8 @@ export const updatePfmpPeriod = createServerFn({ method: 'POST' })
           period_id: updated.id,
           class_id: updated.class_id,
           dossiers_created: sync.created,
+          convention_documents_created: conventionSync.created,
+          convention_documents_updated: conventionSync.updated,
           source: 'server.pfmpPeriods',
         },
       })
@@ -208,12 +217,19 @@ export const publishPfmpPeriod = createServerFn({ method: 'POST' })
 
       const updated = await updatePeriodRow(adminClient, period.id, { status: 'published' })
       const sync = await ensureStudentDossiersForPeriod(adminClient, updated)
+      const conventionSync = await ensureConventionDocumentsForPeriodInternal(adminClient, caller, updated.id, period.establishment_id)
       await insertAuditLog(adminClient, {
         establishmentId: period.establishment_id,
         userId: caller.id,
         action: 'pfmp_period.published',
         description: `Periode PFMP publiee: ${period.name}`,
-        metadata: { period_id: period.id, dossiers_created: sync.created, source: 'server.pfmpPeriods' },
+        metadata: {
+          period_id: period.id,
+          dossiers_created: sync.created,
+          convention_documents_created: conventionSync.created,
+          convention_documents_updated: conventionSync.updated,
+          source: 'server.pfmpPeriods',
+        },
       })
       return updated
     })
@@ -230,6 +246,7 @@ export const syncPfmpPeriodStudentDossiers = createServerFn({ method: 'POST' })
       assertSameTenant(caller, period.establishment_id, data.establishmentId)
 
       const sync = await ensureStudentDossiersForPeriod(adminClient, period)
+      const conventionSync = await ensureConventionDocumentsForPeriodInternal(adminClient, caller, period.id, period.establishment_id)
       await insertAuditLog(adminClient, {
         establishmentId: period.establishment_id,
         userId: caller.id,
@@ -240,10 +257,16 @@ export const syncPfmpPeriodStudentDossiers = createServerFn({ method: 'POST' })
           class_id: period.class_id,
           students: sync.students,
           created: sync.created,
+          convention_documents_created: conventionSync.created,
+          convention_documents_updated: conventionSync.updated,
           source: 'server.pfmpPeriods',
         },
       })
-      return sync
+      return {
+        ...sync,
+        conventionDocumentsCreated: conventionSync.created,
+        conventionDocumentsUpdated: conventionSync.updated,
+      }
     })
   })
 

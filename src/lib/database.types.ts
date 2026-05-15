@@ -354,6 +354,21 @@ export interface DocumentRow {
   updated_at: string
 }
 
+export interface DocumentTemplateRow {
+  id: string
+  establishment_id: string | null
+  type: string
+  name: string
+  description: string | null
+  body_html: string | null
+  body_markdown: string | null
+  variables: Json
+  active: boolean
+  version: number
+  created_at: string
+  updated_at: string
+}
+
 export interface GeneratedDocumentRow {
   id: string
   establishment_id: string

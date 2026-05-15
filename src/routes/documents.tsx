@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Download, Eye, FileText, Upload } from 'lucide-react'
+import { AlertTriangle, Download, Eye, FileText, RefreshCw, Upload } from 'lucide-react'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { AppLayout } from '@/components/AppLayout'
 import { DocumentList } from '@/components/DocumentList'
@@ -12,9 +12,12 @@ import { useAuth } from '@/lib/AuthProvider'
 import { isDemoMode } from '@/lib/supabase'
 import {
   buildDocumentSummary,
+  fetchDocumentPeriods,
   fetchDocuments,
   type DocumentListItem,
 } from '@/services/documents'
+import { ensureConventionDocumentsForPeriod } from '@/server/documents.functions'
+import type { PfmpPeriodRow } from '@/lib/database.types'
 import { documents } from '@/data/demo'
 import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/types'
 
@@ -37,6 +40,10 @@ function DocumentsSupabase() {
   const auth = useAuth()
   const [type, setType] = useState<DocumentType | 'all'>('all')
   const [items, setItems] = useState<DocumentListItem[]>([])
+  const [periods, setPeriods] = useState<PfmpPeriodRow[]>([])
+  const [selectedPeriodId, setSelectedPeriodId] = useState('')
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [syncingConventions, setSyncingConventions] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,12 +59,18 @@ function DocumentsSupabase() {
     setError(null)
 
     withTimeout(
-      fetchDocuments({ type: type === 'all' ? undefined : type }),
+      Promise.all([
+        fetchDocuments({ type: type === 'all' ? undefined : type }),
+        fetchDocumentPeriods(),
+      ]),
       LOAD_TIMEOUT_MS,
       'Lecture Supabase trop longue',
     )
-      .then((nextItems) => {
-        if (mounted) setItems(nextItems)
+      .then(([nextItems, nextPeriods]) => {
+        if (!mounted) return
+        setItems(nextItems)
+        setPeriods(nextPeriods)
+        setSelectedPeriodId((current) => current || nextPeriods[0]?.id || '')
       })
       .catch((e) => {
         if (mounted) setError(e instanceof Error ? e.message : String(e))
@@ -72,6 +85,41 @@ function DocumentsSupabase() {
   }, [auth.loading, auth.profile, type])
 
   const summary = useMemo(() => buildDocumentSummary(items), [items])
+
+  async function reloadDocuments() {
+    const [nextItems, nextPeriods] = await Promise.all([
+      fetchDocuments({ type: type === 'all' ? undefined : type }),
+      fetchDocumentPeriods(),
+    ])
+    setItems(nextItems)
+    setPeriods(nextPeriods)
+    setSelectedPeriodId((current) => current || nextPeriods[0]?.id || '')
+  }
+
+  async function prepareConventions() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken || !selectedPeriodId) return
+    setSyncingConventions(true)
+    setError(null)
+    setActionMessage(null)
+    try {
+      const result = await ensureConventionDocumentsForPeriod({
+        data: {
+          accessToken,
+          establishmentId: auth.activeEstablishmentId,
+          periodId: selectedPeriodId,
+        },
+      })
+      setActionMessage(
+        `${result.created} convention(s) creee(s), ${result.updated} mise(s) a jour pour ${result.placements} dossier(s) PFMP.`,
+      )
+      await reloadDocuments()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSyncingConventions(false)
+    }
+  }
 
   if (auth.loading || loading) return <DocumentsSkeleton />
 
@@ -100,8 +148,21 @@ function DocumentsSupabase() {
     <AppLayout
       title="Documents"
       subtitle={`${summary.total} documents - conventions, attestations, comptes rendus - donnees Supabase`}
-      actions={<DocumentActions disabled />}
+      actions={
+        <DocumentActions
+          periods={periods}
+          selectedPeriodId={selectedPeriodId}
+          onPeriodChange={setSelectedPeriodId}
+          onPrepareConventions={prepareConventions}
+          preparing={syncingConventions}
+        />
+      }
     >
+      {actionMessage && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+          {actionMessage}
+        </div>
+      )}
       <DocumentTabs type={type} setType={setType} />
       <Card>
         <CardHeader>
@@ -122,7 +183,7 @@ function DocumentsSupabase() {
         </CardBody>
       </Card>
       <p className="mt-3 text-xs text-[var(--color-text-muted)]">
-        Storage, generation PDF et export ZIP restent prepares pour la phase documents/signatures.
+        Les conventions sont creees par periode et par eleve. Les champs entreprise/tuteur restent vierges tant que le dossier PFMP n'est pas complete.
       </p>
     </AppLayout>
   )
@@ -157,13 +218,56 @@ function DocumentsDemo() {
   )
 }
 
-function DocumentActions({ disabled = false }: { disabled?: boolean }) {
+function DocumentActions({
+  disabled = false,
+  periods = [],
+  selectedPeriodId = '',
+  onPeriodChange,
+  onPrepareConventions,
+  preparing = false,
+}: {
+  disabled?: boolean
+  periods?: PfmpPeriodRow[]
+  selectedPeriodId?: string
+  onPeriodChange?: (periodId: string) => void
+  onPrepareConventions?: () => void
+  preparing?: boolean
+}) {
   return (
-    <div className="flex gap-2">
-      <Button size="sm" variant="secondary" iconLeft={<Upload className="w-4 h-4" />} disabled={disabled}>
-        Televerser
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {onPrepareConventions && (
+        <>
+          <select
+            value={selectedPeriodId}
+            onChange={(event) => onPeriodChange?.(event.target.value)}
+            className="h-9 rounded-lg border border-[var(--color-border-strong)] bg-white px-3 text-sm text-[var(--color-text)]"
+            disabled={disabled || periods.length === 0 || preparing}
+          >
+            {periods.length === 0 ? (
+              <option value="">Aucune periode</option>
+            ) : (
+              periods.map((period) => (
+                <option key={period.id} value={period.id}>
+                  {period.name}
+                </option>
+              ))
+            )}
+          </select>
+          <Button
+            size="sm"
+            variant="secondary"
+            iconLeft={<RefreshCw className="w-4 h-4" />}
+            onClick={onPrepareConventions}
+            disabled={disabled || !selectedPeriodId || preparing}
+          >
+            {preparing ? 'Preparation...' : 'Preparer conventions'}
+          </Button>
+        </>
+      )}
+      <Button size="sm" variant="secondary" iconLeft={<Upload className="w-4 h-4" />} disabled>
+        Televerser papier
       </Button>
-      <Button size="sm" iconLeft={<Download className="w-4 h-4" />} disabled={disabled}>
+      <Button size="sm" iconLeft={<Download className="w-4 h-4" />} disabled>
         Export ZIP
       </Button>
     </div>

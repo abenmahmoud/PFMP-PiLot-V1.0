@@ -165,7 +165,9 @@ function AdminPeriodDetailSupabase() {
           periodId: period.period.id,
         },
       })
-      setSyncMessage(`${result.created} dossier(s) cree(s), ${result.students} eleve(s) controles.`)
+      setSyncMessage(
+        `${result.created} dossier(s) cree(s), ${result.students} eleve(s) controles, ${result.conventionDocumentsCreated ?? 0} convention(s) preparee(s).`,
+      )
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -228,7 +230,7 @@ function AdminPeriodDetailSupabase() {
               onClick={handleSyncDossiers}
               disabled={submitting}
             >
-              Creer dossiers manquants
+              Creer dossiers + conventions
             </Button>
             <Button size="sm" iconLeft={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
               Ajouter dossier
@@ -259,7 +261,7 @@ function AdminPeriodDetailSupabase() {
               {placements.length === 0 ? (
                 <EmptyState
                   title="Aucun dossier PFMP"
-                  description="Les dossiers eleves sont crees automatiquement a la creation de la periode. Utilisez Creer dossiers manquants si cette periode existait deja."
+                  description="Les dossiers eleves et conventions vierges sont crees automatiquement a la creation de la periode. Utilisez Creer dossiers + conventions si cette periode existait deja."
                 />
               ) : (
                 <ul className="divide-y divide-[var(--color-border)]">

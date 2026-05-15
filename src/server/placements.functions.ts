@@ -20,6 +20,7 @@ import {
   validateUuid,
   type AdminClient,
 } from './_lib'
+import { ensureConventionDocumentsForPeriodInternal } from './documents.functions'
 
 export interface PlacementCreateInput {
   establishmentId?: string | null
@@ -189,6 +190,7 @@ export const createPlacement = createServerFn({ method: 'POST' })
 
       const placement = await insertPlacement(adminClient, student, data.data)
       if (referent?.profile_id) await syncStudentReferent(adminClient, student.id, referent.profile_id)
+      await ensureConventionDocumentsForPeriodInternal(adminClient, caller, period.id, student.establishment_id)
 
       await insertAuditLog(adminClient, {
         establishmentId: student.establishment_id,
@@ -234,6 +236,7 @@ export const updatePlacement = createServerFn({ method: 'POST' })
       }
 
       const updated = await updatePlacementRow(adminClient, placement.id, data.data)
+      await ensureConventionDocumentsForPeriodInternal(adminClient, caller, updated.period_id, updated.establishment_id)
       await insertAuditLog(adminClient, {
         establishmentId: placement.establishment_id,
         userId: caller.id,
