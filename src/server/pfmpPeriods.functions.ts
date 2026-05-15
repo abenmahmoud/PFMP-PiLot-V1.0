@@ -402,12 +402,27 @@ async function ensureStudentDossiersForPeriod(
   if (existingError) throw new Error(`Lecture dossiers PFMP existants impossible: ${existingError.message}`)
 
   const existing = new Set(((existingRows as Array<{ student_id: string }>) ?? []).map((row) => row.student_id))
+  const now = new Date().toISOString()
+
+  const { error: datesSyncError } = await adminClient
+    .from('placements')
+    .update({
+      start_date: period.start_date,
+      end_date: period.end_date,
+      updated_at: now,
+    })
+    .eq('period_id', period.id)
+    .in('student_id', studentIds)
+    .is('archived_at', null)
+    .is('start_date', null)
+    .is('end_date', null)
+  if (datesSyncError) throw new Error(`Synchronisation dates dossiers PFMP impossible: ${datesSyncError.message}`)
+
   const missing = students.filter((student) => !existing.has(student.id))
   if (missing.length === 0) {
     return { ok: true, periodId: period.id, classId: period.class_id, students: students.length, created: 0 }
   }
 
-  const now = new Date().toISOString()
   const { error: insertError } = await adminClient.from('placements').insert(
     missing.map((student) => ({
       establishment_id: period.establishment_id,
@@ -416,8 +431,8 @@ async function ensureStudentDossiersForPeriod(
       company_id: null,
       tutor_id: null,
       referent_id: null,
-      start_date: null,
-      end_date: null,
+      start_date: period.start_date,
+      end_date: period.end_date,
       status: 'no_stage',
       notes: 'Dossier PFMP ouvert automatiquement: eleve en recherche de stage.',
       created_at: now,

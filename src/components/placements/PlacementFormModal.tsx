@@ -331,8 +331,8 @@ function buildInitialValues(
     companyId: initial?.companyId ?? null,
     tutorId: initial?.tutorId ?? null,
     referentId: initial?.referentId ?? null,
-    startDate: initial?.startDate ?? null,
-    endDate: initial?.endDate ?? null,
+    startDate: initial?.startDate ?? periods[0]?.period.start_date ?? null,
+    endDate: initial?.endDate ?? periods[0]?.period.end_date ?? null,
     status: initial?.status ?? 'no_stage',
     notes: initial?.notes ?? null,
   }

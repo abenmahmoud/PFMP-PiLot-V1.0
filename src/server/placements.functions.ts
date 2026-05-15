@@ -72,6 +72,23 @@ const PLACEMENT_STATUSES: StageStatus[] = [
   'interrupted',
 ]
 
+const COMPANY_REQUIRED_STATUSES: StageStatus[] = [
+  'found',
+  'confirmed',
+  'pending_convention',
+  'signed_convention',
+  'in_progress',
+  'completed',
+]
+
+const CONVENTION_READY_STATUSES: StageStatus[] = [
+  'confirmed',
+  'pending_convention',
+  'signed_convention',
+  'in_progress',
+  'completed',
+]
+
 export const listPlacementsForPeriod = createServerFn({ method: 'POST' })
   .inputValidator(validateListForPeriodInput)
   .handler(async ({ data }): Promise<PlacementWithRelations[]> => {
@@ -184,6 +201,13 @@ export const createPlacement = createServerFn({ method: 'POST' })
       assertOptionalResourceTenant(student.establishment_id, tutor?.establishment_id ?? null)
       assertOptionalResourceTenant(student.establishment_id, referent?.establishment_id ?? null)
       if (tutor && company && tutor.company_id !== company.id) throw new Error('Le tuteur ne depend pas de cette entreprise.')
+      assertPlacementWorkflowConsistency({
+        status: data.data.status,
+        companyId: data.data.companyId,
+        tutorId: data.data.tutorId,
+        startDate: data.data.startDate,
+        endDate: data.data.endDate,
+      })
 
       const existing = await findPlacement(adminClient, student.id, period.id)
       if (existing && !existing.archived_at) throw new Error('Un placement existe deja pour cet eleve et cette periode.')
@@ -221,14 +245,25 @@ export const updatePlacement = createServerFn({ method: 'POST' })
       const klass = student.class_id ? await getClassById(adminClient, student.class_id) : null
       assertCanMutatePlacementForStudent(caller, student, klass, 'update', data.establishmentId)
 
-      if (data.data.companyId) {
-        const company = await getCompanyById(adminClient, data.data.companyId)
-        assertResourceTenant(student.establishment_id, company.establishment_id)
-      }
-      if (data.data.tutorId) {
-        const tutor = await getTutorById(adminClient, data.data.tutorId)
-        assertResourceTenant(student.establishment_id, tutor.establishment_id)
-      }
+      const nextCompanyId = data.data.companyId !== undefined ? data.data.companyId : placement.company_id
+      const nextTutorId = data.data.tutorId !== undefined ? data.data.tutorId : placement.tutor_id
+      const nextStatus = data.data.status ?? placement.status
+      const nextStartDate = data.data.startDate !== undefined ? data.data.startDate : placement.start_date
+      const nextEndDate = data.data.endDate !== undefined ? data.data.endDate : placement.end_date
+
+      const company = nextCompanyId ? await getCompanyById(adminClient, nextCompanyId) : null
+      const tutor = nextTutorId ? await getTutorById(adminClient, nextTutorId) : null
+      assertOptionalResourceTenant(student.establishment_id, company?.establishment_id ?? null)
+      assertOptionalResourceTenant(student.establishment_id, tutor?.establishment_id ?? null)
+      if (tutor && company && tutor.company_id !== company.id) throw new Error('Le tuteur ne depend pas de cette entreprise.')
+      if (tutor && !company) throw new Error('Selectionnez une entreprise avant de rattacher un tuteur.')
+      assertPlacementWorkflowConsistency({
+        status: nextStatus,
+        companyId: nextCompanyId,
+        tutorId: nextTutorId,
+        startDate: nextStartDate,
+        endDate: nextEndDate,
+      })
       if (data.data.referentId) {
         const referent = await getTeacherById(adminClient, data.data.referentId)
         assertResourceTenant(student.establishment_id, referent.establishment_id)
@@ -259,6 +294,13 @@ export const updatePlacementStatus = createServerFn({ method: 'POST' })
       const student = await getStudentById(adminClient, placement.student_id)
       const klass = student.class_id ? await getClassById(adminClient, student.class_id) : null
       assertCanMutatePlacementForStudent(caller, student, klass, 'update', data.establishmentId)
+      assertPlacementWorkflowConsistency({
+        status: data.status,
+        companyId: placement.company_id,
+        tutorId: placement.tutor_id,
+        startDate: placement.start_date,
+        endDate: placement.end_date,
+      })
 
       const updated = await updatePlacementRow(adminClient, placement.id, { status: data.status })
       await insertAuditLog(adminClient, {
@@ -710,6 +752,7 @@ function validateUpdateData(record: Record<string, unknown>): PlacementUpdateInp
   if (record.companyId !== undefined) {
     result.companyId = optionalUuid(record.companyId, 'Entreprise')
     if (result.companyId && record.status === undefined) result.status = 'found'
+    if (!result.companyId && record.tutorId === undefined) result.tutorId = null
   }
   if (record.tutorId !== undefined) result.tutorId = optionalUuid(record.tutorId, 'Tuteur')
   if (record.referentId !== undefined) result.referentId = optionalUuid(record.referentId, 'Referent')
@@ -762,6 +805,25 @@ function optionalEnum<T extends string>(value: unknown, allowed: readonly T[], l
   if (!text) return null
   if (!allowed.includes(text as T)) throw new Error(`${label} invalide.`)
   return text as T
+}
+
+function assertPlacementWorkflowConsistency(input: {
+  status: StageStatus
+  companyId: string | null
+  tutorId: string | null
+  startDate: string | null
+  endDate: string | null
+}): void {
+  if (COMPANY_REQUIRED_STATUSES.includes(input.status) && !input.companyId) {
+    throw new Error('Renseignez une entreprise avant de passer ce dossier a ce statut.')
+  }
+  if (CONVENTION_READY_STATUSES.includes(input.status)) {
+    if (!input.tutorId) throw new Error('Renseignez le tuteur entreprise avant validation DDFPT.')
+    if (!input.startDate || !input.endDate) throw new Error('Renseignez les dates de stage avant validation DDFPT.')
+  }
+  if (input.startDate && input.endDate && input.endDate < input.startDate) {
+    throw new Error('La date de fin doit etre apres la date de debut.')
+  }
 }
 
 function indexById<T extends { id: string }>(rows: T[]): Map<string, T> {
