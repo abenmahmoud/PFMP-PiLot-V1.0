@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BookOpen, Download, Eye, FileText, RefreshCw, Save } from 'lucide-react'
+import { AlertTriangle, BookOpen, Brain, Download, Eye, FileText, RefreshCw, Save, UploadCloud } from 'lucide-react'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import { AppLayout } from '@/components/AppLayout'
 import { DocumentList } from '@/components/DocumentList'
@@ -19,14 +19,16 @@ import {
 } from '@/services/documents'
 import {
   assignConventionTemplateToClass,
+  analyzeConventionTemplateSource,
   clearConventionTemplateForClass,
   ensureConventionDocumentsForPeriod,
   listClassConventionTemplateAssignments,
   listDocumentTemplatesForEstablishment,
   saveConventionTemplate,
   type ClassConventionTemplateAssignment,
+  type ConventionTemplateSourceAnalysisResult,
 } from '@/server/documents.functions'
-import type { DocumentTemplateRow, PfmpPeriodRow } from '@/lib/database.types'
+import type { DocumentTemplateFieldRow, DocumentTemplateRow, DocumentTemplateSourceKind, PfmpPeriodRow } from '@/lib/database.types'
 import { documents } from '@/data/demo'
 import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/types'
 
@@ -60,6 +62,12 @@ function DocumentsSupabase() {
   const [error, setError] = useState<string | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [templateBody, setTemplateBody] = useState(DEFAULT_TEMPLATE_DRAFT)
+  const [sourceName, setSourceName] = useState('')
+  const [sourceFile, setSourceFile] = useState<File | null>(null)
+  const [sourceKind, setSourceKind] = useState<DocumentTemplateSourceKind>('docx_import')
+  const [sourceText, setSourceText] = useState('')
+  const [sourceAnalyzing, setSourceAnalyzing] = useState(false)
+  const [analysisResult, setAnalysisResult] = useState<ConventionTemplateSourceAnalysisResult | null>(null)
 
   useEffect(() => {
     if (auth.loading) return
@@ -174,6 +182,44 @@ function DocumentsSupabase() {
     }
   }
 
+  async function analyzeSourceTemplate() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken || !sourceFile) return
+    setSourceAnalyzing(true)
+    setError(null)
+    setActionMessage(null)
+    try {
+      const sourceBase64 = await fileToBase64(sourceFile)
+      const result = await analyzeConventionTemplateSource({
+        data: {
+          accessToken,
+          establishmentId: auth.activeEstablishmentId,
+          source: {
+            name: sourceName || sourceFile.name.replace(/\.[^.]+$/, ''),
+            fileName: sourceFile.name,
+            mimeType: sourceFile.type || inferMimeTypeFromName(sourceFile.name),
+            fileSizeBytes: sourceFile.size,
+            sourceBase64,
+            extractedText: sourceText || null,
+            sourceKind,
+          },
+        },
+      })
+      setAnalysisResult(result)
+      setSourceName('')
+      setSourceFile(null)
+      setSourceText('')
+      setActionMessage(
+        `Source analysee: ${result.fields.length} champ(s) detecte(s), analyse ${result.analysisSource}${result.sourceStored ? ', fichier source archive' : ''}.`,
+      )
+      await reloadDocuments()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSourceAnalyzing(false)
+    }
+  }
+
   async function assignTemplate(classId: string, templateId: string) {
     const accessToken = auth.session?.access_token
     if (!accessToken || !classId || !templateId) return
@@ -261,6 +307,17 @@ function DocumentsSupabase() {
         onCreateTemplate={createTemplate}
         onAssignTemplate={assignTemplate}
         onClearTemplate={clearTemplate}
+        sourceName={sourceName}
+        sourceFile={sourceFile}
+        sourceKind={sourceKind}
+        sourceText={sourceText}
+        sourceAnalyzing={sourceAnalyzing}
+        analysisResult={analysisResult}
+        onSourceNameChange={setSourceName}
+        onSourceFileChange={setSourceFile}
+        onSourceKindChange={setSourceKind}
+        onSourceTextChange={setSourceText}
+        onAnalyzeSource={analyzeSourceTemplate}
       />
       <DocumentTabs type={type} setType={setType} />
       <Card>
@@ -373,27 +430,49 @@ function ConventionStudioPanel({
   templateName,
   templateBody,
   saving,
+  sourceName,
+  sourceFile,
+  sourceKind,
+  sourceText,
+  sourceAnalyzing,
+  analysisResult,
   onTemplateNameChange,
   onTemplateBodyChange,
   onCreateTemplate,
   onAssignTemplate,
   onClearTemplate,
+  onSourceNameChange,
+  onSourceFileChange,
+  onSourceKindChange,
+  onSourceTextChange,
+  onAnalyzeSource,
 }: {
   templates: DocumentTemplateRow[]
   assignments: ClassConventionTemplateAssignment[]
   templateName: string
   templateBody: string
   saving: boolean
+  sourceName: string
+  sourceFile: File | null
+  sourceKind: DocumentTemplateSourceKind
+  sourceText: string
+  sourceAnalyzing: boolean
+  analysisResult: ConventionTemplateSourceAnalysisResult | null
   onTemplateNameChange: (value: string) => void
   onTemplateBodyChange: (value: string) => void
   onCreateTemplate: () => void
   onAssignTemplate: (classId: string, templateId: string) => void
   onClearTemplate: (classId: string) => void
+  onSourceNameChange: (value: string) => void
+  onSourceFileChange: (value: File | null) => void
+  onSourceKindChange: (value: DocumentTemplateSourceKind) => void
+  onSourceTextChange: (value: string) => void
+  onAnalyzeSource: () => void
 }) {
   const conventionTemplates = templates.filter((template) => template.type === 'convention' && template.active)
   return (
-    <div className="mb-5 grid grid-cols-1 xl:grid-cols-3 gap-4">
-      <Card className="xl:col-span-2">
+    <div className="mb-5 grid grid-cols-1 2xl:grid-cols-4 gap-4">
+      <Card className="2xl:col-span-2">
         <CardHeader>
           <CardTitle icon={<BookOpen className="w-4 h-4" />}>Studio conventions par classe</CardTitle>
           <Badge tone="brand">{assignments.filter((item) => item.template).length}/{assignments.length} classes configurees</Badge>
@@ -473,10 +552,121 @@ function ConventionStudioPanel({
             Enregistrer modele
           </Button>
           <p className="text-xs text-[var(--color-text-muted)]">
-            Les fichiers DOCX officiels seront importes dans cette couche : l'IA proposera ensuite le mapping des champs, puis vous validerez.
+            Creation manuelle rapide pour les lycees qui n'ont pas encore fourni leur document officiel.
           </p>
         </CardBody>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle icon={<Brain className="w-4 h-4" />}>Import intelligent</CardTitle>
+          <Badge tone="warning">IA + validation</Badge>
+        </CardHeader>
+        <CardBody className="space-y-3">
+          <div>
+            <Label>Document source</Label>
+            <Input
+              type="file"
+              accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              disabled={sourceAnalyzing || saving}
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
+                onSourceFileChange(file)
+                if (file && !sourceName) onSourceNameChange(file.name.replace(/\.[^.]+$/, ''))
+              }}
+            />
+            {sourceFile && (
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                {sourceFile.name} - {formatFileSize(sourceFile.size)}
+              </p>
+            )}
+          </div>
+          <div>
+            <Label>Nom du modele</Label>
+            <Input
+              value={sourceName}
+              onChange={(event) => onSourceNameChange(event.target.value)}
+              placeholder="Convention CAP EPC 2025"
+              disabled={sourceAnalyzing}
+            />
+          </div>
+          <div>
+            <Label>Format source</Label>
+            <Select
+              value={sourceKind}
+              onChange={(event) => onSourceKindChange(event.target.value as DocumentTemplateSourceKind)}
+              disabled={sourceAnalyzing}
+            >
+              <option value="docx_import">DOCX officiel</option>
+              <option value="pdf_fillable">PDF remplissable</option>
+              <option value="pdf_flat">PDF non remplissable</option>
+              <option value="pdf_scan">Scan papier/PDF scanne</option>
+            </Select>
+          </div>
+          <div>
+            <Label>Texte extrait ou consignes IA</Label>
+            <Textarea
+              className="min-h-28 text-xs"
+              value={sourceText}
+              onChange={(event) => onSourceTextChange(event.target.value)}
+              placeholder="Optionnel : collez ici le texte OCR, les champs repérés ou les consignes du lycée."
+              disabled={sourceAnalyzing}
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            iconLeft={<UploadCloud className="w-4 h-4" />}
+            onClick={onAnalyzeSource}
+            disabled={!sourceFile || sourceAnalyzing}
+          >
+            {sourceAnalyzing ? 'Analyse...' : 'Importer et analyser'}
+          </Button>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Le document est archive comme source. L'IA propose les champs, puis le superadmin ou DDFPT valide avant affectation a une classe.
+          </p>
+          {analysisResult && (
+            <AnalysisResultPreview result={analysisResult} />
+          )}
+        </CardBody>
+      </Card>
+    </div>
+  )
+}
+
+function AnalysisResultPreview({ result }: { result: ConventionTemplateSourceAnalysisResult }) {
+  const required = result.fields.filter((field) => field.required).length
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/40 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-[var(--color-text)]">
+          {result.fields.length} champs detectes
+        </p>
+        <Badge tone={result.analysisSource === 'claude' ? 'brand' : 'neutral'}>
+          {result.analysisSource === 'claude' ? 'Analyse IA' : 'Heuristique'}
+        </Badge>
+      </div>
+      <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+        {required} champs obligatoires. Revue humaine requise avant usage officiel.
+      </p>
+      <div className="mt-3 max-h-36 space-y-1 overflow-auto">
+        {result.fields.slice(0, 8).map((field) => (
+          <FieldReviewLine key={field.id ?? field.field_key} field={field} />
+        ))}
+      </div>
+      {result.warnings.length > 0 && (
+        <p className="mt-2 text-xs text-amber-700">
+          {result.warnings[0]}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function FieldReviewLine({ field }: { field: DocumentTemplateFieldRow }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1 text-xs">
+      <span className="min-w-0 truncate font-medium">{field.label}</span>
+      <span className="shrink-0 text-[var(--color-text-muted)]">{field.role}</span>
     </div>
   )
 }
@@ -607,6 +797,32 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
   } finally {
     if (timeoutId) clearTimeout(timeoutId)
   }
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible.'))
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      const commaIndex = result.indexOf(',')
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result)
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+function inferMimeTypeFromName(name: string): string {
+  const lower = name.toLowerCase()
+  if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  if (lower.endsWith('.pdf')) return 'application/pdf'
+  return 'application/octet-stream'
+}
+
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} o`
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} Ko`
+  return `${(size / 1024 / 1024).toFixed(1)} Mo`
 }
 
 async function fetchConventionStudio(

@@ -61,6 +61,27 @@ export type VisitEvaluationRole = 'referent' | 'tutor' | 'student'
 export type ContactType = 'visit' | 'call' | 'video' | 'email'
 export type AlertLevel = 'none' | 'vigilance' | 'problem' | 'urgent'
 export type DocumentStatusEnum = 'missing' | 'draft' | 'validated' | 'archived'
+export type DocumentTemplateSourceKind =
+  | 'manual'
+  | 'docx_import'
+  | 'pdf_fillable'
+  | 'pdf_flat'
+  | 'pdf_scan'
+  | 'ai_generated'
+  | 'system'
+export type DocumentTemplateAnalysisStatus = 'not_analyzed' | 'analyzed' | 'needs_review' | 'validated' | 'failed'
+export type DocumentTemplateFieldRole =
+  | 'student'
+  | 'parent'
+  | 'school'
+  | 'company'
+  | 'tutor'
+  | 'period'
+  | 'placement'
+  | 'signature'
+  | 'free'
+export type DocumentTemplateFieldSource = 'ai' | 'heuristic' | 'manual' | 'system'
+export type DocumentTemplateFieldReviewStatus = 'pending' | 'accepted' | 'rejected'
 export type EstablishmentStatus = 'active' | 'trial' | 'suspended' | 'archived'
 export type StudentAccessCodeStatus = 'active' | 'revoked' | 'expired'
 export type SignatureWorkflowStatus = 'not_required' | 'pending_signatures' | 'partial_signed' | 'fully_signed'
@@ -366,9 +387,38 @@ export interface DocumentTemplateRow {
   active: boolean
   version: number
   source_filename: string | null
-  source_kind: 'manual' | 'docx_import' | 'ai_generated' | 'system'
+  source_kind: DocumentTemplateSourceKind
+  source_storage_path: string | null
+  source_mime_type: string | null
+  source_size_bytes: number | null
+  analysis_status: DocumentTemplateAnalysisStatus
+  analysis_notes: string | null
+  field_count: number
+  requires_human_review: boolean
   ai_mapping: Json
   is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface DocumentTemplateFieldRow {
+  id: string
+  establishment_id: string | null
+  template_id: string
+  field_key: string
+  label: string
+  role: DocumentTemplateFieldRole
+  value_path: string | null
+  required: boolean
+  source: DocumentTemplateFieldSource
+  page_number: number | null
+  x: number | null
+  y: number | null
+  width: number | null
+  height: number | null
+  confidence: number | null
+  review_status: DocumentTemplateFieldReviewStatus
+  notes: string | null
   created_at: string
   updated_at: string
 }
