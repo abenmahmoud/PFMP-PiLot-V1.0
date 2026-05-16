@@ -118,6 +118,8 @@ export const resendInvitation = createServerFn({ method: 'POST' })
       throw new Error("L'utilisateur a deja active son compte.")
     }
 
+    assertInvitationTargetIdentityIsSafe(target)
+
     const email = getTargetEmail(target)
     const redirectTo = `${getAppUrl()}/onboarding`
     const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
@@ -612,6 +614,20 @@ function matchesStatus(user: UserRowEnriched, status: UserStatusFilter): boolean
   if (status === 'confirmed') return Boolean(user.email_confirmed_at)
   if (status === 'pending') return !user.email_confirmed_at
   return true
+}
+
+function assertInvitationTargetIdentityIsSafe(target: UserTarget): void {
+  if (target.profile.role === 'superadmin') {
+    throw new Error('Impossible de renvoyer une invitation a un compte superadmin.')
+  }
+
+  const profileEmail = normalizeEmail(target.profile.email)
+  const authEmail = normalizeEmail(target.authUser?.email)
+  if (authEmail && profileEmail && authEmail !== profileEmail) {
+    throw new Error(
+      `Invitation bloquee: le compte auth (${authEmail}) ne correspond pas au profil (${profileEmail}). Corrigez le compte avant de renvoyer l'invitation.`,
+    )
+  }
 }
 
 function assertTenantReadPermission(caller: CallerProfile, establishmentId: string): void {

@@ -39,6 +39,14 @@ interface EstablishmentForInvite {
   slug: string
 }
 
+interface ExistingProfileIdentity {
+  id: string
+  email: string
+  role: UserRole
+  establishment_id: string | null
+  archived_at?: string | null
+}
+
 export const inviteUserToEstablishment = createServerFn({ method: 'POST' })
   .inputValidator(validateInviteInput)
   .handler(async ({ data }): Promise<InviteUserToEstablishmentResult> => {
@@ -88,6 +96,12 @@ export async function inviteUserToEstablishmentUnsafe(
     const redirectTo = `${getAppUrl()}/onboarding`
     const cleanEmail = data.email.toLowerCase()
 
+    await assertInviteEmailIsSafe(adminClient, {
+      email: cleanEmail,
+      establishmentId: data.establishmentId,
+      role: data.role,
+    })
+
     const { data: inviteResult, error: inviteError } =
       await adminClient.auth.admin.inviteUserByEmail(cleanEmail, {
         data: {
@@ -107,6 +121,13 @@ export async function inviteUserToEstablishmentUnsafe(
     const invitedUserId = inviteResult.user?.id ?? null
 
     if (invitedUserId) {
+      await assertInvitedIdentityIsSafe(adminClient, {
+        userId: invitedUserId,
+        email: cleanEmail,
+        establishmentId: data.establishmentId,
+        role: data.role,
+      })
+
       const { error: profileError } = await adminClient.from('profiles').upsert(
         {
           id: invitedUserId,
@@ -283,7 +304,7 @@ async function ensureTeacherRowForPedagogicRole(
 
   const { data: existingByEmail, error: emailSelectError } = await adminClient
     .from('teachers')
-    .select('id')
+    .select('id,profile_id,email')
     .eq('establishment_id', input.establishmentId)
     .eq('email', input.email)
     .maybeSingle()
@@ -293,6 +314,13 @@ async function ensureTeacherRowForPedagogicRole(
   }
 
   if (existingByEmail?.id) {
+    const existingProfileId = (existingByEmail as { profile_id?: string | null }).profile_id ?? null
+    if (existingProfileId && existingProfileId !== input.profileId) {
+      throw new Error(
+        "Ce professeur est deja rattache a un autre compte. Detachez l'ancien compte avant de renvoyer une invitation.",
+      )
+    }
+
     const { error: updateError } = await adminClient
       .from('teachers')
       .update({
@@ -317,4 +345,79 @@ async function ensureTeacherRowForPedagogicRole(
   if (insertError) {
     throw new Error(`Creation professeur impossible: ${insertError.message}`)
   }
+}
+
+async function assertInviteEmailIsSafe(
+  adminClient: ReturnType<typeof createAdminClient>,
+  input: { email: string; establishmentId: string; role: InviteUserRole },
+): Promise<void> {
+  const { data: existingProfiles, error } = await adminClient
+    .from('profiles')
+    .select('id,email,role,establishment_id,archived_at')
+    .eq('email', input.email)
+
+  if (error) throw new Error(`Verification email invite impossible: ${error.message}`)
+
+  for (const profile of (existingProfiles ?? []) as ExistingProfileIdentity[]) {
+    assertProfileCanReceiveInvite(profile, input)
+  }
+}
+
+async function assertInvitedIdentityIsSafe(
+  adminClient: ReturnType<typeof createAdminClient>,
+  input: { userId: string; email: string; establishmentId: string; role: InviteUserRole },
+): Promise<void> {
+  const { data: authUserResult, error: authError } = await adminClient.auth.admin.getUserById(input.userId)
+  if (authError) throw new Error(`Verification compte auth invite impossible: ${authError.message}`)
+
+  const authEmail = normalizeEmail(authUserResult.user?.email)
+  if (authEmail && authEmail !== input.email) {
+    throw new Error(
+      `Invitation bloquee: le compte auth retourne (${authEmail}) au lieu de l'email invite (${input.email}). Deconnectez le telephone puis renvoyez l'invitation.`,
+    )
+  }
+
+  const { data: profile, error: profileError } = await adminClient
+    .from('profiles')
+    .select('id,email,role,establishment_id,archived_at')
+    .eq('id', input.userId)
+    .maybeSingle()
+
+  if (profileError) {
+    throw new Error(`Verification profil invite impossible: ${profileError.message}`)
+  }
+
+  if (profile) {
+    assertProfileCanReceiveInvite(profile as ExistingProfileIdentity, input)
+  }
+}
+
+function assertProfileCanReceiveInvite(
+  profile: ExistingProfileIdentity,
+  input: { email: string; establishmentId: string; role: InviteUserRole },
+): void {
+  const profileEmail = normalizeEmail(profile.email)
+  if (profileEmail && profileEmail !== input.email) {
+    throw new Error(
+      `Invitation bloquee: le compte cible est deja lie a ${profileEmail}, pas a ${input.email}.`,
+    )
+  }
+
+  if (profile.role === 'superadmin') {
+    throw new Error('Invitation bloquee: un compte superadmin ne peut jamais etre rattache comme professeur.')
+  }
+
+  if (profile.establishment_id && profile.establishment_id !== input.establishmentId) {
+    throw new Error('Invitation bloquee: cet email est deja rattache a un autre etablissement.')
+  }
+
+  if (!profile.archived_at && profile.role !== input.role) {
+    throw new Error(
+      `Invitation bloquee: cet email possede deja le role ${profile.role}. Modifiez le role depuis Utilisateurs au lieu de renvoyer une invitation.`,
+    )
+  }
+}
+
+function normalizeEmail(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
