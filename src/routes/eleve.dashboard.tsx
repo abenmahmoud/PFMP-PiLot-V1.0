@@ -4,10 +4,13 @@ import {
   AlertTriangle,
   Building2,
   CalendarRange,
+  Download,
+  FileText,
   LogOut,
   Mail,
   MapPin,
   Phone,
+  Send,
   UserRound,
 } from 'lucide-react'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
@@ -15,8 +18,10 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   getStudentPublicDashboard,
+  requestStudentConventionSignature,
   type StudentPublicDashboard,
   type StudentPublicSession,
+  updateStudentGuardianContact,
 } from '@/server/studentPortal.functions'
 
 const STUDENT_SESSION_KEY = 'pfmp_student_session'
@@ -63,6 +68,12 @@ function StudentDashboardPage() {
     navigate({ to: '/eleve' })
   }
 
+  async function refreshDashboard() {
+    if (!session) return
+    const nextDashboard = await getStudentPublicDashboard({ data: { studentId: session.studentId } })
+    setDashboard(nextDashboard)
+  }
+
   if (loading) {
     return (
       <StudentPublicShell title="Chargement..." onLogout={logout}>
@@ -107,8 +118,8 @@ function StudentDashboardPage() {
       onLogout={logout}
     >
       <div className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
-        <StageCard dashboard={dashboard} />
-        <StudentInfoCard dashboard={dashboard} session={session} />
+        <StageCard dashboard={dashboard} onRefresh={refreshDashboard} />
+        <StudentInfoCard dashboard={dashboard} session={session} onRefresh={refreshDashboard} />
       </div>
     </StudentPublicShell>
   )
@@ -161,7 +172,7 @@ function StudentPublicShell({
   )
 }
 
-function StageCard({ dashboard }: { dashboard: StudentPublicDashboard }) {
+function StageCard({ dashboard, onRefresh }: { dashboard: StudentPublicDashboard; onRefresh: () => Promise<void> }) {
   const placement = dashboard.placement
   const status = placement?.status ?? 'no_stage'
 
@@ -225,18 +236,192 @@ function StageCard({ dashboard }: { dashboard: StudentPublicDashboard }) {
             </div>
           </div>
         )}
+
+        <StudentConventionCard dashboard={dashboard} onRefresh={onRefresh} />
       </CardBody>
     </Card>
+  )
+}
+
+function StudentConventionCard({
+  dashboard,
+  onRefresh,
+}: {
+  dashboard: StudentPublicDashboard
+  onRefresh: () => Promise<void>
+}) {
+  const convention = dashboard.convention
+  const [sending, setSending] = useState<'parent' | 'tutor' | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function requestSignature(target: 'parent' | 'tutor') {
+    if (!convention) return
+    setSending(target)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await requestStudentConventionSignature({
+        data: {
+          studentId: dashboard.student.id,
+          documentId: convention.id,
+          target,
+        },
+      })
+      setMessage(`Lien envoye a ${result.recipientEmail}.`)
+      await onRefresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSending(null)
+    }
+  }
+
+  if (!convention) {
+    return (
+      <div className="rounded-lg border border-[var(--color-border)] bg-white p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
+          <FileText className="w-4 h-4 text-[var(--color-text-muted)]" />
+          Convention PFMP
+        </div>
+        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+          Aucune convention n'est encore rattachee a votre dossier. Elle apparaitra ici des que votre classe est affectee a une periode PFMP.
+        </p>
+      </div>
+    )
+  }
+
+  const pdfUrl = convention.finalDownloadUrl ?? convention.downloadUrl
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
+          <FileText className="w-4 h-4 text-[var(--color-text-muted)]" />
+          Convention PFMP
+        </div>
+        <Badge tone={getConventionTone(convention.status, convention.signatureStatus)}>
+          {getConventionLabel(convention.status, convention.signatureStatus)}
+        </Badge>
+      </div>
+
+      <p className="mt-2 text-sm text-[var(--color-text-muted)]">{convention.name}</p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {pdfUrl && (
+          <a href={pdfUrl} target="_blank" rel="noreferrer">
+            <Button type="button" size="sm" variant="secondary" iconLeft={<Download className="w-4 h-4" />}>
+              Telecharger PDF
+            </Button>
+          </a>
+        )}
+        {convention.canRequestParentSignature && (
+          <Button
+            type="button"
+            size="sm"
+            iconLeft={<Send className="w-4 h-4" />}
+            onClick={() => requestSignature('parent')}
+            disabled={sending !== null}
+          >
+            {sending === 'parent' ? 'Envoi...' : 'Envoyer au parent'}
+          </Button>
+        )}
+        {convention.canRequestTutorSignature && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            iconLeft={<Send className="w-4 h-4" />}
+            onClick={() => requestSignature('tutor')}
+            disabled={sending !== null}
+          >
+            {sending === 'tutor' ? 'Envoi...' : 'Envoyer au tuteur'}
+          </Button>
+        )}
+      </div>
+
+      {!pdfUrl && (
+        <p className="mt-3 rounded-md border border-amber-200 bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning-fg)]">
+          Convention attribuee, mais PDF non genere. Votre etablissement doit generer le PDF apres validation du dossier.
+        </p>
+      )}
+
+      {convention.signatures.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs uppercase tracking-wide text-[var(--color-text-subtle)] font-semibold">Signatures</p>
+          {convention.signatures.map((signature) => (
+            <div key={`${signature.role}-${signature.email}`} className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs">
+              <span className="font-medium text-[var(--color-text)]">
+                {signature.name ?? signature.email} - {signatureRoleLabel(signature.role)}
+              </span>
+              <Badge tone={signature.status === 'signed' ? 'success' : 'warning'}>
+                {signature.status === 'signed' ? 'Signe' : 'En attente'}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {message && <p className="mt-3 text-xs text-green-700">{message}</p>}
+      {error && <p className="mt-3 text-xs text-red-700">{error}</p>}
+    </div>
   )
 }
 
 function StudentInfoCard({
   dashboard,
   session,
+  onRefresh,
 }: {
   dashboard: StudentPublicDashboard
   session: StudentPublicSession
+  onRefresh: () => Promise<void>
 }) {
+  const [form, setForm] = useState({
+    birthDate: dashboard.student.birthDate ?? '',
+    parentFirstName: dashboard.student.parentFirstName ?? '',
+    parentLastName: dashboard.student.parentLastName ?? '',
+    parentEmail: dashboard.student.parentEmail ?? '',
+    parentPhone: dashboard.student.parentPhone ?? '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    setForm({
+      birthDate: dashboard.student.birthDate ?? '',
+      parentFirstName: dashboard.student.parentFirstName ?? '',
+      parentLastName: dashboard.student.parentLastName ?? '',
+      parentEmail: dashboard.student.parentEmail ?? '',
+      parentPhone: dashboard.student.parentPhone ?? '',
+    })
+  }, [dashboard.student.birthDate, dashboard.student.parentEmail, dashboard.student.parentFirstName, dashboard.student.parentLastName, dashboard.student.parentPhone])
+
+  async function saveGuardian(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    setMessage(null)
+    try {
+      await updateStudentGuardianContact({
+        data: {
+          studentId: dashboard.student.id,
+          birthDate: form.birthDate || null,
+          parentFirstName: form.parentFirstName || null,
+          parentLastName: form.parentLastName || null,
+          parentEmail: form.parentEmail || null,
+          parentPhone: form.parentPhone || null,
+        },
+      })
+      setMessage('Informations responsable legal enregistrees.')
+      await onRefresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -251,11 +436,69 @@ function StudentInfoCard({
         {dashboard.student.phone && (
           <InfoLine icon={<Phone className="w-4 h-4" />} value={dashboard.student.phone} />
         )}
+        <InfoBlock label="Date de naissance" value={dashboard.student.birthDate ? formatDate(dashboard.student.birthDate) : 'Non renseignee'} />
         {!dashboard.student.email && !dashboard.student.phone && (
           <p className="text-sm text-[var(--color-text-muted)]">
             Aucune coordonnee eleve n'est renseignee pour le moment.
           </p>
         )}
+        <form onSubmit={saveGuardian} className="space-y-3 rounded-lg border border-[var(--color-border)] bg-white p-3">
+          <div>
+            <p className="text-sm font-semibold text-[var(--color-text)]">Responsable legal</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Ces informations servent a envoyer la convention en signature si vous etes mineur.
+            </p>
+          </div>
+          <label className="block text-xs font-medium text-[var(--color-text-muted)]">
+            Date de naissance
+            <input
+              type="date"
+              value={form.birthDate}
+              onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
+              className="mt-1 h-10 w-full rounded-lg border border-[var(--color-border-strong)] px-3 text-sm text-[var(--color-text)]"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs font-medium text-[var(--color-text-muted)]">
+              Prenom parent
+              <input
+                value={form.parentFirstName}
+                onChange={(event) => setForm((current) => ({ ...current, parentFirstName: event.target.value }))}
+                className="mt-1 h-10 w-full rounded-lg border border-[var(--color-border-strong)] px-3 text-sm text-[var(--color-text)]"
+              />
+            </label>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)]">
+              Nom parent
+              <input
+                value={form.parentLastName}
+                onChange={(event) => setForm((current) => ({ ...current, parentLastName: event.target.value }))}
+                className="mt-1 h-10 w-full rounded-lg border border-[var(--color-border-strong)] px-3 text-sm text-[var(--color-text)]"
+              />
+            </label>
+          </div>
+          <label className="block text-xs font-medium text-[var(--color-text-muted)]">
+            Email parent
+            <input
+              type="email"
+              value={form.parentEmail}
+              onChange={(event) => setForm((current) => ({ ...current, parentEmail: event.target.value }))}
+              className="mt-1 h-10 w-full rounded-lg border border-[var(--color-border-strong)] px-3 text-sm text-[var(--color-text)]"
+            />
+          </label>
+          <label className="block text-xs font-medium text-[var(--color-text-muted)]">
+            Telephone parent
+            <input
+              value={form.parentPhone}
+              onChange={(event) => setForm((current) => ({ ...current, parentPhone: event.target.value }))}
+              className="mt-1 h-10 w-full rounded-lg border border-[var(--color-border-strong)] px-3 text-sm text-[var(--color-text)]"
+            />
+          </label>
+          <Button type="submit" size="sm" disabled={saving}>
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
+          </Button>
+          {message && <p className="text-xs text-green-700">{message}</p>}
+          {error && <p className="text-xs text-red-700">{error}</p>}
+        </form>
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/40 px-3 py-2 text-xs text-[var(--color-text-muted)]">
           Session ouverte le {formatDateTime(session.validatedAt)}. Fermez l'onglet ou cliquez sur
           "Se deconnecter" pour quitter.
@@ -363,6 +606,41 @@ function getStageTone(status: string): BadgeTone {
   if (status === 'no_stage' || status === 'draft') return 'warning'
   if (status === 'confirmed') return 'info'
   return 'brand'
+}
+
+function getConventionLabel(status: string, signatureStatus: string | null): string {
+  if (signatureStatus === 'fully_signed' || status === 'signed') return 'Convention signee'
+  if (signatureStatus === 'partial_signed') return 'Signature partielle'
+  if (signatureStatus === 'pending_signatures' || status === 'pending_signatures') return 'En signature'
+  if (status === 'generated') return 'PDF pret'
+  if (status === 'draft') return 'A verifier'
+  if (status === 'missing') return 'Vierge attribuee'
+  return status
+}
+
+function getConventionTone(status: string, signatureStatus: string | null): BadgeTone {
+  if (signatureStatus === 'fully_signed' || status === 'signed') return 'success'
+  if (signatureStatus === 'pending_signatures' || signatureStatus === 'partial_signed' || status === 'pending_signatures') {
+    return 'warning'
+  }
+  if (status === 'generated' || status === 'draft') return 'info'
+  if (status === 'missing') return 'neutral'
+  return 'brand'
+}
+
+function signatureRoleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    parent: 'Parent',
+    tutor: 'Tuteur entreprise',
+    employer: 'Entreprise',
+    ddfpt: 'DDFPT',
+    admin: 'Administration',
+    school: 'Etablissement',
+    referent: 'Referent',
+    principal: 'Professeur principal',
+    student: 'Eleve',
+  }
+  return labels[role] ?? role
 }
 
 function formatDate(value: string | null): string {

@@ -46,7 +46,7 @@ export async function fetchMyStudents(
 
   let studentIds: string[] = []
   if (profile.role === 'principal') {
-    studentIds = await fetchPrincipalStudentIds(teacher.id, filters.classId)
+    studentIds = await fetchPrincipalStudentIds(profile.id, filters.classId)
   } else {
     studentIds = await fetchReferentStudentIds(teacher.id, filters.periodId)
   }
@@ -171,7 +171,7 @@ export async function fetchMyStudentsFilterOptions(profile: ProfileRow): Promise
 
   const [classesResult, periodsResult] = await Promise.all([
     profile.role === 'principal'
-      ? sb.from('classes').select('id, name').eq('principal_id', teacher.id).order('name')
+      ? sb.from('classes').select('id, name').eq('principal_id', profile.id).order('name')
       : sb.from('classes').select('id, name').order('name'),
     sb.from('pfmp_periods').select('id, name').order('start_date', { ascending: false }),
   ])
