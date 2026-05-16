@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import type { ClassRow, ProfileRow, StudentRow, TeacherRow } from '@/lib/database.types'
+import type { ClassRow, PlacementRow, ProfileRow, StudentRow, TeacherRow } from '@/lib/database.types'
 import {
   clean,
   createAdminClient,
@@ -45,11 +45,16 @@ export const assignReferentToStudent = createServerFn({ method: 'POST' })
       assertCanAssignReferent(caller, klass)
 
       const referent = await getReferentProfile(adminClient, data.referentId, student.establishment_id)
+      const referentTeacher = await getTeacherByProfileId(adminClient, referent.id, student.establishment_id)
+      const placement = await getLatestPlacement(adminClient, student.id)
+
       const { error } = await adminClient
         .from('students')
         .update({ referent_id: referent.id })
         .eq('id', student.id)
       if (error) throw new Error(`Affectation referent impossible: ${error.message}`)
+
+      await syncReferentAssignment(adminClient, student, referentTeacher, placement)
 
       await insertAuditLog(adminClient, {
         establishmentId: student.establishment_id,
@@ -59,6 +64,9 @@ export const assignReferentToStudent = createServerFn({ method: 'POST' })
         metadata: {
           student_id: student.id,
           referent_id: referent.id,
+          teacher_id: referentTeacher.id,
+          placement_id: placement?.id ?? null,
+          period_id: placement?.period_id ?? null,
           class_id: klass.id,
           source: 'server.assignments',
         },
@@ -120,6 +128,69 @@ function validateAssignReferentInput(raw: unknown): AssignReferentToStudentInput
     accessToken: readRequiredString(data.accessToken, 'Session'),
     studentId: validateUuid(data.studentId, 'Eleve'),
     referentId: validateUuid(data.referentId, 'Referent'),
+  }
+}
+
+async function getTeacherByProfileId(
+  adminClient: AdminClient,
+  profileId: string,
+  establishmentId: string,
+): Promise<TeacherRow> {
+  const { data, error } = await adminClient
+    .from('teachers')
+    .select('*')
+    .eq('profile_id', profileId)
+    .eq('establishment_id', establishmentId)
+    .is('archived_at', null)
+    .maybeSingle()
+  if (error) throw new Error(`Lecture professeur referent impossible: ${error.message}`)
+  if (!data) throw new Error('Ce referent n a pas encore de fiche professeur rattachee.')
+  return data as unknown as TeacherRow
+}
+
+async function getLatestPlacement(adminClient: AdminClient, studentId: string): Promise<PlacementRow | null> {
+  const { data, error } = await adminClient
+    .from('placements')
+    .select('*')
+    .eq('student_id', studentId)
+    .is('archived_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(`Lecture dossier PFMP impossible: ${error.message}`)
+  return (data as unknown as PlacementRow | null) ?? null
+}
+
+async function syncReferentAssignment(
+  adminClient: AdminClient,
+  student: StudentRow,
+  referentTeacher: TeacherRow,
+  placement: PlacementRow | null,
+): Promise<void> {
+  let deleteQuery = adminClient
+    .from('teacher_assignments')
+    .delete()
+    .eq('establishment_id', student.establishment_id)
+    .eq('student_id', student.id)
+
+  deleteQuery = placement?.period_id ? deleteQuery.eq('period_id', placement.period_id) : deleteQuery.is('period_id', null)
+  const { error: deleteError } = await deleteQuery
+  if (deleteError) throw new Error(`Nettoyage affectation referent impossible: ${deleteError.message}`)
+
+  const { error: insertError } = await adminClient.from('teacher_assignments').insert({
+    establishment_id: student.establishment_id,
+    teacher_id: referentTeacher.id,
+    student_id: student.id,
+    period_id: placement?.period_id ?? null,
+  })
+  if (insertError) throw new Error(`Creation affectation referent impossible: ${insertError.message}`)
+
+  if (placement) {
+    const { error: placementError } = await adminClient
+      .from('placements')
+      .update({ referent_id: referentTeacher.id, updated_at: new Date().toISOString() })
+      .eq('id', placement.id)
+    if (placementError) throw new Error(`Mise a jour referent dossier impossible: ${placementError.message}`)
   }
 }
 
