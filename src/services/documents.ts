@@ -24,6 +24,9 @@ export interface DocumentSummary {
   missing: number
   draft: number
   validated: number
+  generated: number
+  pending_signatures: number
+  signed: number
   archived: number
 }
 
@@ -85,10 +88,14 @@ export function buildDocumentSummary(items: DocumentListItem[]): DocumentSummary
     missing: 0,
     draft: 0,
     validated: 0,
+    generated: 0,
+    pending_signatures: 0,
+    signed: 0,
     archived: 0,
   }
   for (const item of items) {
-    summary[item.document.status as DocumentStatusEnum] += 1
+    const status = item.document.status as DocumentStatusEnum
+    summary[status] += 1
   }
   return summary
 }

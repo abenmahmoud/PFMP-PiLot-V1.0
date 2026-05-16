@@ -120,10 +120,13 @@ function PublicSignatureSupabase() {
                 <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-green-600" />
                 <h1 className="text-xl font-semibold">Signature enregistree</h1>
                 <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-                  Merci. Votre signature est horodatee et rattachee au hash du document.
+                  Merci. Votre signature a ete enregistree.
+                  {result.signatureStatus === 'fully_signed'
+                    ? ' La convention est maintenant complete et le PDF signe est disponible.'
+                    : ' Le document reste en attente des autres signataires.'}
                 </p>
                 <Link to="/verify/$documentId" params={{ documentId: result.generatedDocumentId }} className="mt-4 inline-flex text-sm font-medium text-[var(--color-brand-700)]">
-                  Verifier le document
+                  {result.signatureStatus === 'fully_signed' ? 'Telecharger / verifier le PDF signe' : 'Verifier le document'}
                 </Link>
               </div>
             </CardBody>

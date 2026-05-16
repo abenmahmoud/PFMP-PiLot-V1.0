@@ -443,6 +443,7 @@ async function maybeFinalizeDocument(adminClient: AdminClient, generatedDocument
     })
     .eq('id', document.id)
   if (error) throw new Error(`Finalisation document impossible: ${error.message}`)
+  await markLogicalConventionFullySigned(adminClient, document, finalPdf.path ?? document.final_signed_pdf_url ?? document.storage_path)
   await insertAuditLog(adminClient, {
     establishmentId: document.establishment_id,
     userId,
@@ -450,6 +451,32 @@ async function maybeFinalizeDocument(adminClient: AdminClient, generatedDocument
     description: 'Document finalise avec toutes les signatures',
     metadata: { generated_document_id: document.id, final_hash: finalHash },
   })
+}
+
+async function markLogicalConventionFullySigned(
+  adminClient: AdminClient,
+  document: GeneratedDocumentRow,
+  finalStoragePath: string,
+): Promise<void> {
+  const logicalDocument = await getLogicalDocument(adminClient, document.document_id)
+  if (!logicalDocument || logicalDocument.type !== 'convention') return
+  const now = new Date().toISOString()
+  const { error: documentError } = await adminClient
+    .from('documents')
+    .update({
+      generated_document_id: document.id,
+      storage_path: finalStoragePath,
+      status: 'signed',
+      updated_at: now,
+    })
+    .eq('id', logicalDocument.id)
+  if (documentError) throw new Error(`Mise a jour convention signee impossible: ${documentError.message}`)
+  if (!logicalDocument.placement_id) return
+  const { error: placementError } = await adminClient
+    .from('placements')
+    .update({ status: 'signed_convention', updated_at: now })
+    .eq('id', logicalDocument.placement_id)
+  if (placementError) throw new Error(`Mise a jour dossier signe impossible: ${placementError.message}`)
 }
 
 async function createFinalSignedPdf(

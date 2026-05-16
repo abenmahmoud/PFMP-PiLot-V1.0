@@ -53,13 +53,16 @@ export function PeriodStatusBadge({ status }: { status: PeriodStatus }) {
 export function DocumentStatusBadge({
   status,
 }: {
-  status: 'missing' | 'draft' | 'validated' | 'archived'
+  status: 'missing' | 'draft' | 'validated' | 'generated' | 'pending_signatures' | 'signed' | 'archived'
 }) {
   const map = {
     missing: { tone: 'danger', label: 'Manquant' },
     draft: { tone: 'warning', label: 'Brouillon' },
-    validated: { tone: 'success', label: 'Validé' },
-    archived: { tone: 'neutral', label: 'Archivé' },
+    validated: { tone: 'success', label: 'Valide' },
+    generated: { tone: 'info', label: 'PDF genere' },
+    pending_signatures: { tone: 'warning', label: 'Signatures' },
+    signed: { tone: 'success', label: 'Signe' },
+    archived: { tone: 'neutral', label: 'Archive' },
   } as const
   const { tone, label } = map[status]
   return <Badge tone={tone} dot>{label}</Badge>

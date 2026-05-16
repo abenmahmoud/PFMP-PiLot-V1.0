@@ -326,7 +326,7 @@ export interface Document {
   companyId?: UUID
   name: string
   date: ISODate
-  status: 'missing' | 'draft' | 'validated' | 'archived'
+  status: 'missing' | 'draft' | 'validated' | 'generated' | 'pending_signatures' | 'signed' | 'archived'
   authorId?: UUID
 }
 

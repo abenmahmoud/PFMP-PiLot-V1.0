@@ -60,7 +60,28 @@ export type VisitEvaluationLevel = 'non_evalue' | 'A' | 'B' | 'C' | 'NE'
 export type VisitEvaluationRole = 'referent' | 'tutor' | 'student'
 export type ContactType = 'visit' | 'call' | 'video' | 'email'
 export type AlertLevel = 'none' | 'vigilance' | 'problem' | 'urgent'
-export type DocumentStatusEnum = 'missing' | 'draft' | 'validated' | 'archived'
+export type DocumentStatusEnum = 'missing' | 'draft' | 'validated' | 'generated' | 'pending_signatures' | 'signed' | 'archived'
+export type DocumentTemplateSourceKind =
+  | 'manual'
+  | 'docx_import'
+  | 'pdf_fillable'
+  | 'pdf_flat'
+  | 'pdf_scan'
+  | 'ai_generated'
+  | 'system'
+export type DocumentTemplateAnalysisStatus = 'not_analyzed' | 'analyzed' | 'needs_review' | 'validated' | 'failed'
+export type DocumentTemplateFieldRole =
+  | 'student'
+  | 'parent'
+  | 'school'
+  | 'company'
+  | 'tutor'
+  | 'period'
+  | 'placement'
+  | 'signature'
+  | 'free'
+export type DocumentTemplateFieldSource = 'ai' | 'heuristic' | 'manual' | 'system'
+export type DocumentTemplateFieldReviewStatus = 'pending' | 'accepted' | 'rejected'
 export type EstablishmentStatus = 'active' | 'trial' | 'suspended' | 'archived'
 export type StudentAccessCodeStatus = 'active' | 'revoked' | 'expired'
 export type SignatureWorkflowStatus = 'not_required' | 'pending_signatures' | 'partial_signed' | 'fully_signed'
@@ -123,8 +144,13 @@ export interface StudentRow {
   class_id: string | null
   first_name: string
   last_name: string
+  birth_date?: string | null
   email: string | null
   phone: string | null
+  parent_first_name?: string | null
+  parent_last_name?: string | null
+  parent_email?: string | null
+  parent_phone?: string | null
   formation: string | null
   notes: string | null
   referent_id: string | null
@@ -347,6 +373,7 @@ export interface DocumentRow {
   template_id: string | null
   name: string
   storage_path: string | null
+  generated_document_id: string | null
   status: DocumentStatusEnum
   author_id: string | null
   archived_at: string | null
@@ -366,9 +393,38 @@ export interface DocumentTemplateRow {
   active: boolean
   version: number
   source_filename: string | null
-  source_kind: 'manual' | 'docx_import' | 'ai_generated' | 'system'
+  source_kind: DocumentTemplateSourceKind
+  source_storage_path: string | null
+  source_mime_type: string | null
+  source_size_bytes: number | null
+  analysis_status: DocumentTemplateAnalysisStatus
+  analysis_notes: string | null
+  field_count: number
+  requires_human_review: boolean
   ai_mapping: Json
   is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface DocumentTemplateFieldRow {
+  id: string
+  establishment_id: string | null
+  template_id: string
+  field_key: string
+  label: string
+  role: DocumentTemplateFieldRole
+  value_path: string | null
+  required: boolean
+  source: DocumentTemplateFieldSource
+  page_number: number | null
+  x: number | null
+  y: number | null
+  width: number | null
+  height: number | null
+  confidence: number | null
+  review_status: DocumentTemplateFieldReviewStatus
+  notes: string | null
   created_at: string
   updated_at: string
 }
