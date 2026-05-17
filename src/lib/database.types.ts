@@ -459,6 +459,7 @@ export interface GeneratedDocumentRow {
   final_signed_pdf_url: string | null
   final_signed_sha256_hex: string | null
   signature_proof: Json
+  pdf_kind?: 'paper_backup' | 'final' | 'audit_trail'
 }
 
 export interface DocumentSignatureRow {
@@ -492,11 +493,32 @@ export interface DocumentSignatureRow {
   magic_link_token_hash: string | null
   magic_link_expires_at: string | null
   magic_link_used_at: string | null
+  otp_phone_e164?: string | null
+  otp_sent_at?: string | null
   otp_code_hash: string | null
   otp_verified_at: string | null
+  otp_attempts?: number
+  otp_locked_until?: string | null
+  handwritten_mention?: string | null
+  qualified_timestamp_token?: string | null
+  assurance_level?: 'simple' | 'advanced'
   signing_order: number
   created_at: string
   updated_at: string
+}
+
+export interface SignatureOtpChallengeRow {
+  id: string
+  signature_id: string
+  phone_e164: string
+  otp_hash: string
+  otp_salt: string
+  sent_at: string
+  expires_at: string
+  attempts: number
+  locked_until: string | null
+  verified_at: string | null
+  brevo_message_id: string | null
 }
 
 export interface TutorAccessTokenRow {
