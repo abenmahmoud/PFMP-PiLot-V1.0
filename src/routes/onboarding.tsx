@@ -67,6 +67,23 @@ function OnboardingSupabase() {
     )
   }
 
+  if (auth.profile.role === 'superadmin') {
+    return (
+      <AppLayout title="Onboarding" subtitle="Activation du compte">
+        <EmptyState
+          icon={<AlertTriangle className="w-5 h-5" />}
+          title="Compte superadmin detecte"
+          description="Cette page sert uniquement a activer un compte invite. Deconnectez-vous du superadmin sur cet appareil, puis rouvrez le lien d'invitation depuis l'email du professeur."
+          action={
+            <Link to="/superadmin/dashboard">
+              <Button>Retour console superadmin</Button>
+            </Link>
+          }
+        />
+      </AppLayout>
+    )
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
