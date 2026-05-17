@@ -7,3 +7,4 @@ src/routeTree.gen.ts
 data-reference/blaise-cendrars/listes/*.csv
 data-reference/blaise-cendrars/listes/*.xlsx
 data-reference/blaise-cendrars/conventions/convention*PDF/
+.env*.local
