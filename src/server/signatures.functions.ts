@@ -15,6 +15,8 @@ import type {
 import { buildSignatureProofBundle, embedSignaturesInPdf } from '@/lib/pdfSignatures'
 import { computeDocumentHash, generateMagicLinkToken, hashMagicLinkToken } from '@/lib/signatureCrypto'
 import { sendSignatureRequestEmail } from '@/lib/emailSignatureRequest'
+import { assertVerifiedSignatureOtp } from '@/lib/signatureOtp'
+import { generateTimestampToken } from '@/lib/qualifiedTimestamp'
 import {
   clean,
   createAdminClient,
@@ -38,6 +40,7 @@ export interface SignatureSignerInput {
   tutorId: string | null
   studentId: string | null
   required: boolean
+  assuranceLevel?: 'simple' | 'advanced'
 }
 
 export interface SignatureStatusResult {
@@ -51,10 +54,11 @@ export interface SignatureStatusResult {
 }
 
 export interface PublicSignatureRequest {
-  signature: Pick<DocumentSignatureRow, 'id' | 'signer_email' | 'signer_name' | 'signer_role' | 'status' | 'document_hash'>
+  signature: Pick<DocumentSignatureRow, 'id' | 'signer_email' | 'signer_name' | 'signer_role' | 'status' | 'document_hash' | 'assurance_level' | 'otp_verified_at'>
   document: Pick<GeneratedDocumentRow, 'id' | 'sha256_hex' | 'generated_at' | 'signature_status'>
   logicalDocument: Pick<DocumentRow, 'id' | 'name' | 'type'> | null
   expiresAt: string
+  previewUrl: string | null
 }
 
 export interface PublicDocumentVerification {
@@ -131,6 +135,7 @@ export const getSignatureRequestByToken = createServerFn({ method: 'POST' })
       }
       const document = await getGeneratedDocument(adminClient, required(signature.generated_document_id, 'Document genere'))
       const logicalDocument = await getLogicalDocument(adminClient, document.document_id)
+      const previewUrl = await createDocumentPreviewUrl(adminClient, document)
       if (signature.status === 'sent') {
         await adminClient.from('document_signatures').update({ status: 'viewed', viewed_at: new Date().toISOString() }).eq('id', signature.id)
       }
@@ -142,6 +147,8 @@ export const getSignatureRequestByToken = createServerFn({ method: 'POST' })
           signer_role: signature.signer_role,
           status: signature.status,
           document_hash: signature.document_hash,
+          assurance_level: signature.assurance_level ?? 'simple',
+          otp_verified_at: signature.otp_verified_at ?? null,
         },
         document: {
           id: document.id,
@@ -157,6 +164,7 @@ export const getSignatureRequestByToken = createServerFn({ method: 'POST' })
             }
           : null,
         expiresAt: signature.magic_link_expires_at ?? '',
+        previewUrl,
       }
     })
   })
@@ -215,14 +223,32 @@ export const signDocumentViaMagicLink = createServerFn({ method: 'POST' })
       }
       const document = await getGeneratedDocument(adminClient, required(signature.generated_document_id, 'Document genere'))
       const hash = resolveDocumentHash(document)
-      await signSignatureRow(adminClient, signature, data.method, data.signatureData, hash, data.ip ?? getRequestIp(), data.userAgent ?? getRequestUserAgent())
+      const advanced = await buildAdvancedSignatureProof(adminClient, signature, document, hash, data.handwrittenMention, data.otpChallengeId)
+      await signSignatureRow(
+        adminClient,
+        signature,
+        data.method,
+        data.signatureData,
+        hash,
+        data.ip ?? getRequestIp(),
+        data.userAgent ?? getRequestUserAgent(),
+        advanced,
+      )
       await markTokenUsed(adminClient, tokenHash)
       await insertAuditLog(adminClient, {
         establishmentId: document.establishment_id,
         userId: null,
         action: 'signature.signed_magic_link',
         description: 'Document signe via lien magique',
-        metadata: { generated_document_id: document.id, signature_id: signature.id, signer_role: signature.signer_role },
+        metadata: {
+          generated_document_id: document.id,
+          signature_id: signature.id,
+          signer_role: signature.signer_role,
+          assurance_level: signature.assurance_level ?? 'simple',
+          otp_used: Boolean(advanced),
+          mention_typed: Boolean(advanced?.handwrittenMention),
+          qualified_timestamp_kid: advanced ? 'pfmp-tsa-v1' : null,
+        },
       })
       await maybeFinalizeDocument(adminClient, document.id, null)
       const nextDocument = await getGeneratedDocument(adminClient, document.id)
@@ -240,6 +266,9 @@ export const signDocumentAsAuthenticatedUser = createServerFn({ method: 'POST' }
       assertCanReadGeneratedDocument(caller, document, data.establishmentId)
       const signature = await findPendingSignatureForCaller(adminClient, document.id, caller)
       if (!signature) throw new Error('Aucune signature en attente pour votre compte.')
+      if ((signature.assurance_level ?? 'simple') === 'advanced') {
+        throw new Error('Cette convention exige une verification telephone. Utilisez le lien de signature recu par email.')
+      }
       const hash = resolveDocumentHash(document)
       await signSignatureRow(adminClient, signature, data.method, data.signatureData, hash, getRequestIp(), getRequestUserAgent())
       await insertAuditLog(adminClient, {
@@ -386,10 +415,10 @@ export async function requestSignaturesForDocumentInternal(
   const ttlDays = Number(process.env.SIGNATURE_MAGIC_LINK_TTL_DAYS ?? '30')
   const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString()
 
-  for (const signer of input.signers) {
+  for (const [index, signer] of input.signers.entries()) {
     const token = signer.userId ? null : generateMagicLinkToken()
     const tokenHash = token ? hashMagicLinkToken(token) : null
-    const signature = await createOrReuseSignature(adminClient, document, logicalDocument, signer, documentHash, tokenHash, expiresAt)
+    const signature = await createOrReuseSignature(adminClient, document, logicalDocument, signer, documentHash, tokenHash, expiresAt, index + 1)
     if (token && tokenHash) {
       await createTutorAccessToken(adminClient, document, signature, signer, tokenHash, expiresAt)
       await recordSignatureEmail(adminClient, document, signature, signer, tokenHash)
@@ -503,6 +532,14 @@ async function createFinalSignedPdf(
   return { path: finalPath, hash: computeDocumentHash(signedPdf) }
 }
 
+async function createDocumentPreviewUrl(adminClient: AdminClient, document: GeneratedDocumentRow): Promise<string | null> {
+  if (!document.storage_path) return null
+  const bucket = process.env.GENERATED_PDFS_BUCKET ?? 'generated-pdfs'
+  const { data, error } = await adminClient.storage.from(bucket).createSignedUrl(document.storage_path, 60 * 20)
+  if (error) return null
+  return data.signedUrl
+}
+
 async function getStatus(adminClient: AdminClient, generatedDocumentId: string): Promise<SignatureStatusResult> {
   const document = await getGeneratedDocument(adminClient, generatedDocumentId)
   const logicalDocument = await getLogicalDocument(adminClient, document.document_id)
@@ -528,6 +565,7 @@ async function createOrReuseSignature(
   documentHash: string,
   tokenHash: string | null,
   expiresAt: string,
+  signingOrder: number,
 ): Promise<DocumentSignatureRow> {
   const existing = await findSignatureByEmail(adminClient, document.id, signer.email)
   if (existing) return existing
@@ -551,7 +589,8 @@ async function createOrReuseSignature(
       document_hash: documentHash,
       magic_link_token_hash: tokenHash,
       magic_link_expires_at: tokenHash ? expiresAt : null,
-      signing_order: 1,
+      signing_order: signingOrder,
+      assurance_level: signer.assuranceLevel ?? 'simple',
     })
     .select('*')
     .single()
@@ -608,8 +647,13 @@ async function signSignatureRow(
   documentHash: string,
   ip: string | null,
   userAgent: string | null,
+  advanced?: {
+    signedAt: string
+    handwrittenMention: string
+    qualifiedTimestampToken: string
+  } | null,
 ): Promise<void> {
-  const signedAt = new Date().toISOString()
+  const signedAt = advanced?.signedAt ?? new Date().toISOString()
   const { error } = await adminClient
     .from('document_signatures')
     .update({
@@ -624,10 +668,42 @@ async function signSignatureRow(
       signed_from_ip: ip,
       signed_from_user_agent: userAgent,
       magic_link_used_at: signature.magic_link_token_hash ? signedAt : signature.magic_link_used_at,
+      handwritten_mention: advanced?.handwrittenMention ?? signature.handwritten_mention ?? null,
+      qualified_timestamp_token: advanced?.qualifiedTimestampToken ?? signature.qualified_timestamp_token ?? null,
       updated_at: signedAt,
     })
     .eq('id', signature.id)
   if (error) throw new Error(`Signature impossible: ${error.message}`)
+}
+
+async function buildAdvancedSignatureProof(
+  adminClient: AdminClient,
+  signature: DocumentSignatureRow,
+  document: GeneratedDocumentRow,
+  documentHash: string,
+  handwrittenMention: string | null,
+  otpChallengeId: string | null,
+): Promise<{
+  signedAt: string
+  handwrittenMention: string
+  qualifiedTimestampToken: string
+} | null> {
+  if ((signature.assurance_level ?? 'simple') !== 'advanced') return null
+  if (handwrittenMention !== 'Lu et approuvé') {
+    throw new Error('Verification OTP manquante ou mention manuscrite invalide.')
+  }
+  if (!otpChallengeId) throw new Error('Verification OTP manquante ou mention manuscrite invalide.')
+  const challenge = await assertVerifiedSignatureOtp(adminClient, signature.id, otpChallengeId)
+  const signedAt = new Date().toISOString()
+  const token = generateTimestampToken({
+    document_id: document.id,
+    signer_email: signature.signer_email,
+    signed_at: signedAt,
+    sha256_at_sign: documentHash,
+    phone_e164: challenge.phone_e164,
+    mention_handwritten: handwrittenMention,
+  })
+  return { signedAt, handwrittenMention, qualifiedTimestampToken: token }
 }
 
 async function markTokenUsed(adminClient: AdminClient, tokenHash: string): Promise<void> {
@@ -833,6 +909,8 @@ function validateMagicSignInput(data: unknown): {
   signatureData: string | null
   ip: string | null
   userAgent: string | null
+  handwrittenMention: string | null
+  otpChallengeId: string | null
 } {
   const record = asRecord(data)
   return {
@@ -841,6 +919,8 @@ function validateMagicSignInput(data: unknown): {
     signatureData: optionalText(record.signatureData, 300000),
     ip: optionalText(record.ip, 80),
     userAgent: optionalText(record.userAgent, 500),
+    handwrittenMention: optionalText(record.handwritten_mention ?? record.handwrittenMention, 80),
+    otpChallengeId: optionalUuid(record.otp_challenge_id ?? record.otpChallengeId, 'Challenge OTP'),
   }
 }
 
@@ -904,6 +984,7 @@ function validateSigner(record: Record<string, unknown>): SignatureSignerInput {
     tutorId: optionalUuid(record.tutorId, 'Tuteur'),
     studentId: optionalUuid(record.studentId, 'Eleve'),
     required: record.required !== false,
+    assuranceLevel: record.assuranceLevel === 'advanced' || record.assurance_level === 'advanced' ? 'advanced' : 'simple',
   }
 }
 

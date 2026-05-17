@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, FileText, PenLine, RefreshCw, Send } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FileDown, FileText, PenLine, RefreshCw, Send, ShieldCheck } from 'lucide-react'
 import { AppLayout } from '@/components/AppLayout'
 import { EmptyState } from '@/components/EmptyState'
 import { Badge } from '@/components/ui/Badge'
@@ -18,7 +18,7 @@ import {
   type DocumentSignatureWorkspace,
   type SignatureStatusResult,
 } from '@/server/signatures.functions'
-import { generateConventionPdf, sendConventionForSignatures } from '@/server/conventions.functions'
+import { downloadFinalSignedPdf, downloadPaperBackupPdf, generateConventionPdf, sendConventionForSignatures } from '@/server/conventions.functions'
 
 export const Route = createFileRoute('/admin/documents/$id')({
   component: AdminDocumentDetailPage,
@@ -134,6 +134,42 @@ function AdminDocumentDetailSupabase() {
     }
   }
 
+  async function downloadPaperBackup() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken) return
+    setSaving(true)
+    setError(null)
+    try {
+      const result = await downloadPaperBackupPdf({
+        data: { accessToken, establishmentId: auth.activeEstablishmentId, documentId: id },
+      })
+      downloadBase64Pdf(result.pdfBase64, result.filename)
+      setActionMessage('PDF papier de secours telecharge.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function downloadSignedFinal() {
+    const accessToken = auth.session?.access_token
+    if (!accessToken) return
+    setSaving(true)
+    setError(null)
+    try {
+      const result = await downloadFinalSignedPdf({
+        data: { accessToken, establishmentId: auth.activeEstablishmentId, documentId: id },
+      })
+      downloadBase64Pdf(result.pdfBase64, result.filename)
+      setActionMessage('PDF signe final telecharge.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function remind(generatedDocumentId: string, signerEmail: string) {
     const accessToken = auth.session?.access_token
     if (!accessToken) return
@@ -209,6 +245,8 @@ function AdminDocumentDetailSupabase() {
             saving={saving}
             onGenerate={generateConvention}
             onSend={sendConventionSignatures}
+            onDownloadPaper={downloadPaperBackup}
+            onDownloadFinal={downloadSignedFinal}
           />
         )}
 
@@ -281,6 +319,8 @@ function ConventionWorkflowCard({
   saving,
   onGenerate,
   onSend,
+  onDownloadPaper,
+  onDownloadFinal,
 }: {
   status: string
   hasGeneratedDocument: boolean
@@ -288,6 +328,8 @@ function ConventionWorkflowCard({
   saving: boolean
   onGenerate: () => void
   onSend: () => void
+  onDownloadPaper: () => void
+  onDownloadFinal: () => void
 }) {
   const canGenerate = status === 'draft' || status === 'generated'
   const canSend = status === 'generated' && hasGeneratedDocument && latestGeneratedDocument?.signature_status === 'not_required'
@@ -302,6 +344,24 @@ function ConventionWorkflowCard({
         </Badge>
       </CardHeader>
       <CardBody className="space-y-4">
+        {status !== 'missing' && (
+          <div className="rounded-lg border border-[var(--color-border)] bg-white p-3">
+            <p className="text-sm font-medium text-[var(--color-text)]">Telechargements</p>
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+              Gardez toujours une sortie papier utilisable en secours, puis le PDF final avec preuves quand toutes les signatures sont collectees.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" iconLeft={<FileDown className="w-4 h-4" />} onClick={onDownloadPaper} disabled={saving}>
+                PDF papier de secours
+              </Button>
+              {isSigned && (
+                <Button type="button" size="sm" iconLeft={<ShieldCheck className="w-4 h-4" />} onClick={onDownloadFinal} disabled={saving}>
+                  PDF signe final
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
         {status === 'missing' && (
           <p className="text-sm text-[var(--color-text-muted)]">
             Affectez d'abord une entreprise, un tuteur et les dates dans le dossier PFMP. La convention passera alors en brouillon.
@@ -433,6 +493,23 @@ function conventionWorkflowLabel(status: string): string {
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function downloadBase64Pdf(base64: string, filename: string): void {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  const blob = new Blob([bytes], { type: 'application/pdf' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 function demoSignature(

@@ -1,4 +1,5 @@
 import type { DocumentSignatureRow, GeneratedDocumentRow } from '@/lib/database.types'
+import { maskPhoneE164 } from '@/lib/brevoSms'
 
 export interface SignatureProofBundle {
   generatedDocumentId: string
@@ -12,6 +13,10 @@ export interface SignatureProofBundle {
     method: string | null
     ip: string | null
     userAgent: string | null
+    phoneMasked: string | null
+    otpVerifiedAt: string | null
+    handwrittenMention: string | null
+    timestampTokenPrefix: string | null
   }>
 }
 
@@ -32,6 +37,10 @@ export function buildSignatureProofBundle(
       method: signature.signature_method,
       ip: signature.signed_from_ip ?? signature.ip_address,
       userAgent: signature.signed_from_user_agent ?? signature.user_agent,
+      phoneMasked: signature.otp_phone_e164 ? maskPhoneE164(signature.otp_phone_e164) : null,
+      otpVerifiedAt: signature.otp_verified_at ?? null,
+      handwrittenMention: signature.handwritten_mention ?? null,
+      timestampTokenPrefix: signature.qualified_timestamp_token?.slice(0, 8) ?? null,
     })),
   }
 }
@@ -50,7 +59,7 @@ export async function embedSignaturesInPdf(
   const left = 48
   let y = 780
 
-  page.drawText('Dossier de preuve - signatures electroniques simples', {
+  page.drawText('Preuves cryptographiques de signature electronique avancee', {
     x: left,
     y,
     size: 16,
@@ -58,7 +67,7 @@ export async function embedSignaturesInPdf(
     color: rgb(0.08, 0.11, 0.18),
   })
   y -= 28
-  page.drawText('PFMP Pilot AI - signature simple, non qualifiee eIDAS', {
+  page.drawText('PFMP Pilot AI - niveau avance applicatif, avec OTP SMS et horodatage serveur', {
     x: left,
     y,
     size: 10,
@@ -94,16 +103,21 @@ export async function embedSignaturesInPdf(
     y -= 16
     const details = [
       `Role: ${signature.signer_role}`,
+      `Email: ${signature.signer_email}`,
       `Methode: ${signature.signature_method ?? 'click_to_sign'}`,
       `Date: ${signature.signed_at ?? 'non signee'}`,
       `IP: ${signature.signed_from_ip ?? signature.ip_address ?? 'non disponible'}`,
+      `Telephone OTP: ${signature.otp_phone_e164 ? maskPhoneE164(signature.otp_phone_e164) : 'non verifie'}`,
+      `OTP envoye: ${signature.otp_sent_at ?? 'non disponible'} / valide: ${signature.otp_verified_at ?? 'non disponible'}`,
+      `Mention manuscrite: ${signature.handwritten_mention ?? 'non renseignee'}`,
+      `Horodatage qualifie: ${signature.qualified_timestamp_token ? `${signature.qualified_timestamp_token.slice(0, 8)}... (HS512)` : 'non disponible'}`,
     ]
     for (const detail of details) {
       page.drawText(detail, { x: left + 12, y, size: 9, font, color: rgb(0.2, 0.25, 0.33) })
       y -= 13
     }
     if (signature.document_hash) {
-      for (const line of wrap(`Hash document: ${signature.document_hash}`, 90)) {
+      for (const line of wrap(`Hash SHA-256 au moment signature: ${compactHash(signature.document_hash)}`, 90)) {
         page.drawText(line, { x: left + 12, y, size: 8, font, color: rgb(0.39, 0.45, 0.55) })
         y -= 11
       }
@@ -124,6 +138,15 @@ export async function embedSignaturesInPdf(
       page = pdfDoc.addPage([595.28, 841.89])
     }
   }
+  if (y < 150) {
+    y = 780
+    page = pdfDoc.addPage([595.28, 841.89])
+  }
+  y -= 8
+  for (const line of wrap('Cette signature electronique avancee a ete collectee conformement au reglement eIDAS (UE) n 910/2014. Les preuves cryptographiques ci-dessus documentent la verification telephone par OTP, l integrite du document signe par hash SHA-256 et l horodatage applicatif signe PFMP Pilot AI.', 105)) {
+    page.drawText(line, { x: left, y, size: 8, font, color: rgb(0.39, 0.45, 0.55) })
+    y -= 11
+  }
 
   return pdfDoc.save()
 }
@@ -134,4 +157,9 @@ function wrap(text: string, max: number): string[] {
     lines.push(text.slice(index, index + max))
   }
   return lines
+}
+
+function compactHash(value: string): string {
+  if (value.length <= 40) return value
+  return `${value.slice(0, 16)}...${value.slice(-16)}`
 }

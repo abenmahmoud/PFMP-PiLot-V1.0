@@ -25,6 +25,7 @@ export interface ConventionRenderData {
 export async function renderConventionPdf(input: {
   template: DocumentTemplateRow
   data: ConventionRenderData
+  paperBackup?: boolean
 }): Promise<{ pdfBytes: Uint8Array; sha256Hex: string }> {
   const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib')
   const pdf = await PDFDocument.create()
@@ -87,6 +88,19 @@ export async function renderConventionPdf(input: {
   drawSignatureBox('Tuteur entreprise', `${input.data.tutor.first_name} ${input.data.tutor.last_name}`.trim())
   drawSignatureBox('Responsable legal', parentName(input.data.student))
   drawSignatureBox('DDFPT / Etablissement', profileName(input.data.ddfpt))
+  if (input.paperBackup) {
+    if (y < margin + 34) {
+      page = pdf.addPage(pageSize)
+      y = pageSize[1] - margin
+    }
+    page.drawText('Document de secours - privilegier la signature electronique lorsque possible.', {
+      x: margin,
+      y: margin - 10,
+      size: 8,
+      font: regular,
+      color: rgb(0.39, 0.45, 0.55),
+    })
+  }
 
   const bytes = await pdf.save()
   return {
@@ -113,7 +127,7 @@ export async function renderConventionPdf(input: {
     })
     page.drawText(title, { x: x + 12, y: y - 18, size: 10, font: bold, color: rgb(0.1, 0.13, 0.2) })
     page.drawText(`Signataire : ${signer || 'A renseigner'}`, { x: x + 12, y: y - 34, size: 9, font: regular, color: rgb(0.25, 0.28, 0.35) })
-    page.drawText('Signe le ___ / ___ / ______', { x: x + 12, y: y - 49, size: 9, font: regular, color: rgb(0.25, 0.28, 0.35) })
+    page.drawText('Fait a ____________________ le ___ / ___ / ______', { x: x + 12, y: y - 49, size: 9, font: regular, color: rgb(0.25, 0.28, 0.35) })
     y -= height + 10
   }
 }

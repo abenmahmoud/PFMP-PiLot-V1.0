@@ -3,12 +3,14 @@ import { createServerFn } from '@tanstack/react-start'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type {
   ClassRow,
+  EstablishmentRow,
   Json,
   ProfileRow,
   StudentAccessCodeRow,
   StudentRow,
   UserRole,
 } from '@/lib/database.types'
+import { renderStudentCodeCoupons } from '@/lib/pdfStudentCodeCoupon'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -62,6 +64,8 @@ export interface GenerateStudentCodesResult {
   generatedCodes: GeneratedStudentCode[]
   skippedCount: number
   revokedCount: number
+  couponsPdfBase64: string | null
+  filename: string | null
 }
 
 interface CallerProfile extends ProfileRow {}
@@ -113,6 +117,7 @@ export const generateClassStudentAccessCodes = createServerFn({ method: 'POST' }
         klass: context.class,
         students: targetStudents,
       })
+      const coupons = await buildCouponsPdf(adminClient, context.class, generatedCodes)
 
       await insertAuditLog(adminClient, {
         caller,
@@ -133,6 +138,7 @@ export const generateClassStudentAccessCodes = createServerFn({ method: 'POST' }
         generatedCodes,
         skippedCount: data.mode === 'missing' ? context.students.length - generatedCodes.length : 0,
         revokedCount,
+        ...coupons,
       }
     })
   })
@@ -158,6 +164,7 @@ export const generateSingleStudentAccessCode = createServerFn({ method: 'POST' }
         klass: context.class,
         students: [student],
       })
+      const coupons = await buildCouponsPdf(adminClient, context.class, generatedCodes)
 
       await insertAuditLog(adminClient, {
         caller,
@@ -172,7 +179,7 @@ export const generateSingleStudentAccessCode = createServerFn({ method: 'POST' }
         },
       })
 
-      return { generatedCodes, skippedCount: 0, revokedCount }
+      return { generatedCodes, skippedCount: 0, revokedCount, ...coupons }
     })
   })
 
@@ -457,6 +464,39 @@ async function createCodesForStudents(
   }))
 }
 
+async function buildCouponsPdf(
+  adminClient: AdminClient,
+  klass: ClassRow,
+  generatedCodes: GeneratedStudentCode[],
+): Promise<Pick<GenerateStudentCodesResult, 'couponsPdfBase64' | 'filename'>> {
+  if (generatedCodes.length === 0) return { couponsPdfBase64: null, filename: null }
+  const establishment = await fetchEstablishment(adminClient, klass.establishment_id)
+  const pdfBytes = await renderStudentCodeCoupons(
+    generatedCodes.map((code) => ({
+      first_name: code.firstName,
+      last_name: code.lastName,
+      class_name: code.className,
+      code_clear: code.code,
+    })),
+    { name: establishment.name },
+  )
+  return {
+    couponsPdfBase64: Buffer.from(pdfBytes).toString('base64'),
+    filename: `codes-eleves-${slugify(klass.name)}-${new Date().toISOString().slice(0, 10)}.pdf`,
+  }
+}
+
+async function fetchEstablishment(adminClient: AdminClient, establishmentId: string): Promise<EstablishmentRow> {
+  const { data, error } = await adminClient
+    .from('establishments')
+    .select('*')
+    .eq('id', establishmentId)
+    .maybeSingle()
+  if (error) throw new Error(`Lecture etablissement impossible: ${error.message}`)
+  if (!data) throw new Error('Etablissement introuvable.')
+  return data as unknown as EstablishmentRow
+}
+
 async function insertAuditLog(
   adminClient: AdminClient,
   input: {
@@ -486,6 +526,16 @@ function generateReadableCode(): string {
   const bytes = randomBytes(9)
   const chars = Array.from(bytes, (byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length])
   return `PFMP-${chars.slice(0, 4).join('')}-${chars.slice(4, 8).join('')}`
+}
+
+function slugify(value: string): string {
+  return clean(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'classe'
 }
 
 function hashAccessCode(code: string): string {

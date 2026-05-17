@@ -16,6 +16,7 @@ import type {
   UserRole,
 } from '@/lib/database.types'
 import { renderConventionPdf } from '@/lib/pdfConvention'
+import { computeDocumentHash } from '@/lib/signatureCrypto'
 import {
   finalizeSignedDocumentInternal,
   requestSignaturesForDocumentInternal,
@@ -47,6 +48,12 @@ export interface GenerateConventionPdfResult {
 export interface SendConventionSignaturesResult {
   signaturesSent: number
   recipients: Array<{ role: string; name: string; email: string }>
+}
+
+export interface DownloadConventionPdfResult {
+  pdfBase64: string
+  filename: string
+  sha256Hex: string
 }
 
 export interface PendingConventionValidationItem {
@@ -106,6 +113,7 @@ export const generateConventionPdf = createServerFn({ method: 'POST' })
           signature_status: 'not_required',
           required_signers: [],
           signature_proof: {},
+          pdf_kind: 'final',
         })
         .select('*')
         .single()
@@ -174,6 +182,59 @@ export const sendConventionForSignatures = createServerFn({ method: 'POST' })
       return {
         signaturesSent: signers.length,
         recipients: signers.map((signer) => ({ role: signer.role, name: signer.name, email: signer.email })),
+      }
+    })
+  })
+
+export const downloadPaperBackupPdf = createServerFn({ method: 'POST' })
+  .inputValidator(validateDocumentActionInput)
+  .handler(async ({ data }): Promise<DownloadConventionPdfResult> => {
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      assertCanManageConventions(caller)
+      const context = await loadConventionContext(adminClient, data.documentId)
+      assertSameTenant(caller, context.document.establishment_id, data.establishmentId)
+      if (context.document.type !== 'convention') throw new Error('Ce document n est pas une convention PFMP.')
+      if (context.document.status === 'missing') throw new Error('Completez le dossier avant de telecharger le PDF papier.')
+      assertConventionComplete(context)
+      const template = await resolveTemplateForConvention(adminClient, context)
+      const { pdfBytes, sha256Hex } = await renderConventionPdf({ template, data: context, paperBackup: true })
+      return {
+        pdfBase64: Buffer.from(pdfBytes).toString('base64'),
+        filename: `convention-${slugify(context.student.last_name)}-${slugify(context.student.first_name)}-papier.pdf`,
+        sha256Hex,
+      }
+    })
+  })
+
+export const downloadFinalSignedPdf = createServerFn({ method: 'POST' })
+  .inputValidator(validateDocumentActionInput)
+  .handler(async ({ data }): Promise<DownloadConventionPdfResult> => {
+    return safeHandlerCall(async () => {
+      const adminClient = createAdminClient()
+      const caller = await getCallerProfile(adminClient, data.accessToken)
+      assertCanManageConventions(caller)
+      const context = await loadConventionContext(adminClient, data.documentId)
+      assertSameTenant(caller, context.document.establishment_id, data.establishmentId)
+      if (context.document.status !== 'signed' || !context.document.generated_document_id) {
+        throw new Error('Le PDF final est disponible uniquement apres signature complete.')
+      }
+      const generated = await getGeneratedDocument(adminClient, context.document.generated_document_id)
+      if (generated.signature_status !== 'fully_signed') throw new Error('Signatures incompletes.')
+      const bucket = process.env.GENERATED_PDFS_BUCKET ?? 'generated-pdfs'
+      const storagePath = generated.final_signed_pdf_url ?? generated.storage_path
+      const { data: blob, error } = await adminClient.storage.from(bucket).download(storagePath)
+      if (error || !blob) throw new Error(`Telechargement PDF signe impossible: ${error?.message ?? 'fichier vide'}`)
+      const pdfBytes = new Uint8Array(await blob.arrayBuffer())
+      const sha256Hex = computeDocumentHash(pdfBytes)
+      if (generated.final_signed_sha256_hex && generated.final_signed_sha256_hex !== sha256Hex) {
+        throw new Error('Verification hash du PDF signe impossible.')
+      }
+      return {
+        pdfBase64: Buffer.from(pdfBytes).toString('base64'),
+        filename: `convention-${slugify(context.student.last_name)}-${slugify(context.student.first_name)}-signee.pdf`,
+        sha256Hex,
       }
     })
   })
@@ -318,6 +379,7 @@ async function buildConventionSigners(
       tutorId: context.tutor.id,
       studentId: null,
       required: true,
+      assuranceLevel: 'advanced',
     },
   ]
 
@@ -332,6 +394,7 @@ async function buildConventionSigners(
       tutorId: null,
       studentId: context.student.id,
       required: true,
+      assuranceLevel: 'advanced',
     })
   }
 
@@ -346,6 +409,7 @@ async function buildConventionSigners(
     tutorId: null,
     studentId: null,
     required: true,
+    assuranceLevel: 'advanced',
   })
   return dedupeSigners(signers)
 }
@@ -453,6 +517,16 @@ function normalizeEmail(value: string): string {
   const email = clean(value).toLowerCase()
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error(`Email invalide: ${value}`)
   return email
+}
+
+function slugify(value: string): string {
+  return clean(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'document'
 }
 
 function validateDocumentActionInput(data: unknown): { accessToken: string; establishmentId: string | null; documentId: string } {

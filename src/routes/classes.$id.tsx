@@ -30,6 +30,7 @@ import {
   type ClassStudentAccessResult,
   type ClassStudentAccessRow,
   type GeneratedStudentCode,
+  type GenerateStudentCodesResult,
   type StudentAccessStatus,
 } from '@/server/studentAccessCodes.functions'
 import type { TeacherWithStats } from '@/server/teachers.functions'
@@ -124,13 +125,20 @@ function ClassAccessSupabase({ classId }: { classId: string }) {
     }
   }
 
+  function handleGeneratedResult(result: GenerateStudentCodesResult): GeneratedStudentCode[] {
+    if (result.couponsPdfBase64 && result.filename) {
+      downloadBase64Pdf(result.couponsPdfBase64, result.filename)
+    }
+    return result.generatedCodes
+  }
+
   async function generateMissing() {
     await runAction('missing', async () => {
       const result = await generateClassStudentAccessCodes({
         data: { accessToken, classId, mode: 'missing' },
       })
-      setSuccess(`${result.generatedCodes.length} code(s) eleve generes.`)
-      return result.generatedCodes
+      setSuccess(`${result.generatedCodes.length} code(s) eleve generes. PDF coupons telecharge.`)
+      return handleGeneratedResult(result)
     })
   }
 
@@ -143,8 +151,8 @@ function ClassAccessSupabase({ classId }: { classId: string }) {
       const result = await generateClassStudentAccessCodes({
         data: { accessToken, classId, mode: 'all' },
       })
-      setSuccess(`${result.generatedCodes.length} code(s) regeneres, ${result.revokedCount} ancien(s) revoques.`)
-      return result.generatedCodes
+      setSuccess(`${result.generatedCodes.length} code(s) regeneres, ${result.revokedCount} ancien(s) revoques. PDF coupons telecharge.`)
+      return handleGeneratedResult(result)
     })
   }
 
@@ -153,8 +161,8 @@ function ClassAccessSupabase({ classId }: { classId: string }) {
       const result = await generateSingleStudentAccessCode({
         data: { accessToken, classId, studentId },
       })
-      setSuccess('Code eleve regenere.')
-      return result.generatedCodes
+      setSuccess('Code eleve regenere. Coupon PDF telecharge.')
+      return handleGeneratedResult(result)
     })
   }
 
@@ -744,4 +752,21 @@ function formatDateTime(value: string): string {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function downloadBase64Pdf(base64: string, filename: string): void {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  const blob = new Blob([bytes], { type: 'application/pdf' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
